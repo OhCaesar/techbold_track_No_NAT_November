@@ -1,0 +1,15 @@
+<div class="chat-selector">
+  <h2 class="selector-title">Select a Chat</h2>
+  <div class="chat-list-selector">
+    @for (chat of availableChats; track chat.id) {
+      <div class="chat-list-item-wrapper" (click)="selectChat(chat)">
+        <app-chat-list-element
+          [chatName]="chat.name"
+          [chatDate]="chat.date"
+          [active]="chat.active"
+        >
+        </app-chat-list-element>
+      </div>
+    }
+  </div>
+</div>

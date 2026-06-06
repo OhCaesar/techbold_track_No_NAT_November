@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
-import { ChatListElementComponent } from '../chat-list-element/chat-list-element.component';
+import { ChatSelectionComponent } from '../chat-selection/chat-selection.component';
+import { ChatDetailViewComponent } from '../chat-detail-view/chat-detail-view.component';
 import { TicketLogComponent, LogEntry } from '../ticket-log/ticket-log.component';
 
 @Component({
   selector: 'app-ticket-detailview',
   standalone: true,
-  imports: [ChatListElementComponent, TicketLogComponent],
+  imports: [ChatSelectionComponent, ChatDetailViewComponent, TicketLogComponent],
   templateUrl: './ticket-detailview.component.html',
   styleUrl: './ticket-detailview.component.css',
 })
@@ -52,19 +53,19 @@ export class TicketDetailviewComponent {
     this.showLogs = !this.showLogs;
   }
 
-  openChat(availableChat: any) {
-    const existingChat = this.openChats.find(c => c.id === availableChat.id);
+  onChatSelected(chat: any) {
+    const existingChat = this.openChats.find(c => c.id === chat.id);
     if (!existingChat) {
-      this.openChats.push({ ...availableChat });
+      this.openChats.push({ ...chat });
     }
-    this.activeChat = this.openChats.find(c => c.id === availableChat.id);
+    this.activeChat = this.openChats.find(c => c.id === chat.id);
   }
 
-  selectChat(chat: any) {
+  onChatTabSelected(chat: any) {
     this.activeChat = chat;
   }
 
-  closeChat(chatId: number) {
+  onChatClosed(chatId: number) {
     const index = this.openChats.findIndex(c => c.id === chatId);
     if (index !== -1) {
       this.openChats.splice(index, 1);
@@ -76,7 +77,7 @@ export class TicketDetailviewComponent {
     }
   }
 
-  addNewChat() {
+  onNewChatAdded() {
     const newId = Math.max(...this.openChats.map(c => c.id), 0) + 1;
     const newChat = {
       id: newId,
