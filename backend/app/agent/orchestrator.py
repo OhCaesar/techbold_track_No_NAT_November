@@ -32,6 +32,8 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
     settings = get_settings()
     start_time = datetime.now(timezone.utc)
 
+    logger.info("🚀 Starting agent for chat_id=%s, ticket_id=%s", chat_id, ticket_id)
+
     async with AsyncSessionLocal() as db:
         chat = await db.get(Chat, chat_id)
         if chat is None:
