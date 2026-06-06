@@ -1,0 +1,79 @@
+<div class="container">
+  <div class="left-panel">
+    <p class="company-name">Nordlicht Logistik GmbH</p>
+
+    <h1 class="ticket-title">Status API intermittently unavailable</h1>
+
+    <div class="system-info">
+      <div class="info-item">
+        <p class="info-label">SYSTEM</p>
+        <p class="info-value">UBUNTU 22.04 LTS</p>
+      </div>
+      <div class="info-item">
+        <p class="info-label">IP</p>
+        <p class="info-value">10.0.0.5</p>
+      </div>
+      <div class="info-item">
+        <p class="info-label">PORT</p>
+        <p class="info-value">22</p>
+      </div>
+    </div>
+
+    <button class="logs-button">
+      <span class="logs-icon">
+        <svg
+          width="24"
+          height="25"
+          viewBox="0 0 24 25"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M16 0C17.1046 0 18 0.895431 18 2V12H16V2H2V17H10V19H2L1.7959 18.9893C0.854346 18.8938 0.1062 18.1457 0.0107422 17.2041L0 17V2C1.61066e-07 0.895431 0.895431 8.0532e-09 2 0H16ZM10 12V14H4V12H10ZM14 10H4V8H14V10ZM14 6H4V4H14V6Z"
+            fill="white"
+          />
+          <path
+            d="M17.1094 14.0049C19.1739 14.1078 20.8154 15.7839 20.8154 17.8359L20.8105 18.0332C20.7766 18.6896 20.5729 19.3015 20.2441 19.8301L23.707 23.293L22.293 24.707L18.7852 21.1992C18.228 21.4994 17.5886 21.6708 16.9082 21.6709L16.707 21.666C14.7088 21.5667 13.1063 19.9945 13.0049 18.0332L13 17.8359C13 15.7176 14.75 14 16.9082 14L17.1094 14.0049ZM16.9082 16C15.8192 16 15 16.8571 15 17.8359C15.0002 18.8146 15.8193 19.6709 16.9082 19.6709C17.9969 19.6707 18.8153 18.8145 18.8154 17.8359C18.8154 16.8572 17.997 16.0002 16.9082 16Z"
+            fill="white"
+          />
+        </svg>
+      </span>
+      <span>LOGS</span>
+    </button>
+
+    <div class="notes-section">
+      <h2 class="section-title">Notes</h2>
+      <p class="section-text">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor
+        invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam
+        et....
+      </p>
+    </div>
+
+    <div class="description-section">
+      <h2 class="section-title">Description</h2>
+      <p class="section-text">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor
+        invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam
+        et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est
+        Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed
+        diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam
+        volutua. At vero eos et accusam at justo duo dolores et ea rebum. Stet clita kasd gubergren,
+        no sea takimata sanctus est Lorem ipsum dolor sit amet.
+      </p>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <h2 class="chat-title">New Chat</h2>
+
+    <div class="chat-list">
+      @for (chat of chats; track $index) {
+        <app-chat-list-element [chatName]="chat.name" [chatDate]="chat.date" [active]="chat.active">
+        </app-chat-list-element>
+      }
+    </div>
+
+    <button class="create-button">Create</button>
+  </div>
+</div>
