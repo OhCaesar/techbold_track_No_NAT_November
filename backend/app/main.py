@@ -2,6 +2,7 @@
 
 Keep the ERP token and the SSH key on the backend — never in the browser.
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,6 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
 from .db.session import init_db
 import app.db.models  # noqa: F401 — registers ORM models with Base.metadata
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s",
+)
 
 
 @asynccontextmanager
