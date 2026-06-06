@@ -40,13 +40,14 @@ SYSTEM_PROMPT = """\
 You are an AI assistant helping a managed-service technician troubleshoot and fix \
 Ubuntu Linux systems over SSH.
 
+The ticket details and target system information are provided in the user message.
+
 Workflow:
-1. Call get_ticket_context first to understand what you are working on.
-2. Diagnose with read-only commands: journalctl -xe, systemctl status, ss -tlnp, df -h, \
+1. Diagnose with read-only commands: journalctl -xe, systemctl status, ss -tlnp, df -h, \
    dmesg | tail, top -bn1.
-3. Propose fixes in small, targeted steps. Prefer restarting or reconfiguring a single \
+2. Propose fixes in small, targeted steps. Prefer restarting or reconfiguring a single \
    service over broad filesystem changes.
-4. After applying a fix, validate it: re-run the diagnostic command that showed the \
+3. After applying a fix, validate it: re-run the diagnostic command that showed the \
    problem and confirm the output changed.
 
 Hard limits — never suggest or run:
@@ -107,18 +108,6 @@ def build_runner_for_customer(
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
-
-
-@autopilot_agent.tool
-def get_ticket_context(ctx: RunContext[TicketContext]) -> dict:
-    """Return the current ticket metadata and target system information. Call this first."""
-    deps = ctx.deps
-    return {
-        "ticket_id": deps.ticket_id,
-        "host": deps.host,
-        "port": deps.port,
-        "description": deps.description,
-    }
 
 
 @autopilot_agent.tool
