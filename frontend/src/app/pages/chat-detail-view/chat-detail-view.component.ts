@@ -59,6 +59,15 @@ export class ChatDetailViewComponent {
   /** All streamed responses for the active chat, joined for a simple <p> dump. */
   get streamedText(): string {
     const msgs: ChatMessage[] = this.activeChat?.messages || [];
+    if (msgs.length === 0) {
+      const streamState = this.activeChat?.eventSource?.readyState;
+      if (streamState === EventSource.CONNECTING || streamState === undefined) {
+        return '⏳ Connecting to stream...';
+      } else if (streamState === EventSource.OPEN) {
+        return '📡 Stream connected, waiting for agent response...';
+      }
+      return '';
+    }
     return msgs.map((m) => m.content).join('\n\n');
   }
 

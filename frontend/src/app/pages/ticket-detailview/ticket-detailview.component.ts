@@ -283,13 +283,14 @@ export class TicketDetailviewComponent implements OnInit {
       this.openChats.push(existingChat);
     }
 
-    // Connect to stream if not already connected
+    // Set active chat first so view switches immediately
+    this.activeChat = existingChat;
+    this.refreshView(); // Render the chat detail view instantly
+
+    // Then connect to stream (async)
     if (!existingChat.eventSource) {
       this.connectStream(existingChat);
     }
-
-    this.activeChat = existingChat;
-    this.cdr.markForCheck();
   }
 
   /**
@@ -303,8 +304,14 @@ export class TicketDetailviewComponent implements OnInit {
     chat.eventSource = es;
     let currentMessageId = '';
 
+    console.log('🔌 Stream connecting to chat', chat.id, 'readyState:', es.readyState);
+
+    // Trigger immediate render to show "Connecting..."
+    this.refreshView();
+
     es.addEventListener('text_delta', (event: any) => {
       const content = JSON.parse(event.data).content || '';
+      console.log('📝 text_delta:', content.substring(0, 50));
       if (!currentMessageId) {
         currentMessageId = Math.random().toString();
         chat.messages.push({ id: currentMessageId, content });
@@ -319,6 +326,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('tool_call_requested', (event: any) => {
       const data = JSON.parse(event.data);
+      console.log('🔧 tool_call_requested:', data.tool_name);
       currentMessageId = '';
       chat.messages.push({
         id: Math.random().toString(),
@@ -339,6 +347,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('agent_completed', (event: any) => {
       const data = JSON.parse(event.data);
+      console.log('✅ agent_completed:', data.summary);
       currentMessageId = '';
       chat.messages.push({
         id: Math.random().toString(),
@@ -424,10 +433,10 @@ export class TicketDetailviewComponent implements OnInit {
 
         this.openChats.push(newChat);
         this.activeChat = newChat;
+        this.refreshView(); // Switch view to chat detail instantly
 
+        // Then connect to stream (async)
         this.connectStream(newChat);
-
-        this.refreshView();
       },
       error: (err) => {
         console.error('Error creating chat:', err);
