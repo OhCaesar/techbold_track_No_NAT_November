@@ -1,4 +1,5 @@
 import {Component} from '@angular/core';
+import {CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem} from '@angular/cdk/drag-drop';
 
 interface KanbanCard {
   id: number;
@@ -17,10 +18,23 @@ interface KanbanColumn {
 @Component({
   selector: 'kanban-board',
   standalone: true,
+  imports: [DragDropModule],
   templateUrl: './kanban-board.html',
   styleUrls: ['./kanban-board.css']
 })
 export class KanbanBoard {
+  get columnIds(): string[] {
+    return this.columns.map(c => c.label);
+  }
+
+  drop(event: CdkDragDrop<KanbanCard[]>): void {
+    if (event.previousContainer === event.container) {
+      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+    } else {
+      transferArrayItem(event.previousContainer.data, event.container.data, event.previousIndex, event.currentIndex);
+    }
+  }
+
   columns: KanbanColumn[] = [
     {
       label: 'OPEN',

@@ -2,9 +2,17 @@
   @for (column of columns; track column.label) {
     <div class="kanban-column">
       <h2 class="kanban-column__title">{{ column.label }}</h2>
-      <div class="kanban-column__cards">
+      <div
+        class="kanban-column__cards"
+        cdkDropList
+        [id]="column.label"
+        [cdkDropListData]="column.cards"
+        [cdkDropListConnectedTo]="columnIds"
+        (cdkDropListDropped)="drop($event)"
+      >
         @for (card of column.cards; track card.id) {
-          <div class="kanban-card">
+          <div class="kanban-card" cdkDrag>
+            <div class="kanban-card__drag-placeholder" *cdkDragPlaceholder></div>
             @if (card.count) {
               <span class="kanban-card__count">{{ card.count }}</span>
             }

@@ -86,3 +86,33 @@
   font-size: 14px;
   color: #111827;
 }
+
+.kanban-card.cdk-drag-dragging {
+  opacity: 0.85;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  cursor: grabbing;
+}
+
+.kanban-card:not(.cdk-drag-dragging) {
+  cursor: grab;
+}
+
+.kanban-card__drag-placeholder {
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  min-height: 80px;
+  background: #f9fafb;
+}
+
+.cdk-drag-preview {
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.cdk-drag-animating {
+  transition: transform 200ms ease;
+}
+
+.kanban-column__cards.cdk-drop-list-dragging .kanban-card:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
+}
