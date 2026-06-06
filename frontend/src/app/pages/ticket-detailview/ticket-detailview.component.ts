@@ -1,10 +1,9 @@
 import {
   Component,
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  ApplicationRef,
   OnInit,
   signal,
+  WritableSignal,
   SecurityContext,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -21,6 +20,18 @@ import { TicketService } from '../../services/ticket.service';
 import { Ticket } from '../../types/ticket';
 import { Customer } from '../../types/customer';
 
+/** A chat opened in a tab, with a live SSE connection and a reactive message log. */
+interface OpenChat {
+  id: any;
+  name: string;
+  date?: string;
+  active?: boolean;
+  content?: string;
+  eventSource: EventSource | null;
+  /** Signal so SSE pushes re-render the chat view automatically (zoneless app). */
+  messages: WritableSignal<ChatMessage[]>;
+}
+
 @Component({
   selector: 'app-ticket-detailview',
   standalone: true,
@@ -30,8 +41,11 @@ import { Customer } from '../../types/customer';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TicketDetailviewComponent implements OnInit {
-  showLogs = false;
-  leftPanelCollapsed = false;
+  // All mutable template state is held in signals. This is a zoneless app, so
+  // signal writes are what schedule change detection — including the streamed
+  // SSE updates below. No manual markForCheck()/tick() needed.
+  showLogs = signal(false);
+  leftPanelCollapsed = signal(false);
 
   ticket = signal<Ticket | null>(null);
   customer = signal<Customer | null>(null);
@@ -39,23 +53,15 @@ export class TicketDetailviewComponent implements OnInit {
   isLoading = signal(true);
   error = signal<string | null>(null);
 
+  availableChats = signal<any[]>([]);
+  openChats = signal<OpenChat[]>([]);
+  activeChat = signal<OpenChat | null>(null);
+
   constructor(
-    private cdr: ChangeDetectorRef,
-    private appRef: ApplicationRef,
     private route: ActivatedRoute,
     private ticketService: TicketService,
     private sanitizer: DomSanitizer,
   ) {}
-
-  /**
-   * Force a synchronous change-detection pass. Required because this is a
-   * zoneless app (no zone.js): EventSource callbacks are not signal writes,
-   * so markForCheck() alone never schedules a render. tick() is safe here
-   * because SSE callbacks run as async macrotasks, never during an active CD.
-   */
-  private refreshView(): void {
-    this.appRef.tick();
-  }
 
   ngOnInit(): void {
     this.route.params.subscribe((params) => {
@@ -80,14 +86,12 @@ export class TicketDetailviewComponent implements OnInit {
         } else {
           this.error.set('Ticket not found');
           this.isLoading.set(false);
-          this.cdr.markForCheck();
         }
       },
       error: (err) => {
         this.error.set('Failed to load ticket');
         console.error('Error loading ticket:', err);
         this.isLoading.set(false);
-        this.cdr.markForCheck();
       },
     });
   }
@@ -98,22 +102,23 @@ export class TicketDetailviewComponent implements OnInit {
 
     this.ticketService.getChats(ticketId).subscribe({
       next: (response) => {
-        this.availableChats = response.chats.map((chat) => {
-          const chatId = chat.id.toString();
-          return {
-            id: chatId,
-            name: `Chat ${chatId.substring(0, 7)}`,
-            date: new Date(chat.created_at).toLocaleDateString('de-AT'),
-            active: true,
-            content: '',
-          };
-        });
+        this.availableChats.set(
+          response.chats.map((chat) => {
+            const chatId = chat.id.toString();
+            return {
+              id: chatId,
+              name: `Chat ${chatId.substring(0, 7)}`,
+              date: new Date(chat.created_at).toLocaleDateString('de-AT'),
+              active: true,
+              content: '',
+            };
+          }),
+        );
         this.loadCustomer(ticket.customer_id);
       },
       error: (err) => {
         console.error('Error loading chats:', err);
         this.isLoading.set(false);
-        this.cdr.markForCheck();
       },
     });
   }
@@ -123,12 +128,10 @@ export class TicketDetailviewComponent implements OnInit {
       next: (customer) => {
         this.customer.set(customer);
         this.isLoading.set(false);
-        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Error loading customer:', err);
         this.isLoading.set(false);
-        this.cdr.markForCheck();
       },
     });
   }
@@ -139,11 +142,9 @@ export class TicketDetailviewComponent implements OnInit {
       const html = await marked(processed);
       const sanitized = this.sanitizer.sanitize(SecurityContext.HTML, html) || '';
       this.renderedDescription.set(sanitized);
-      this.cdr.markForCheck();
     } catch (error) {
       console.error('Error rendering markdown:', error);
       this.renderedDescription.set(markdown);
-      this.cdr.markForCheck();
     }
   }
 
@@ -207,34 +208,6 @@ export class TicketDetailviewComponent implements OnInit {
     return result.join('\n');
   }
 
-  availableChats: any[] = [
-    {
-      id: '1',
-      name: 'Chat 1',
-      date: '12.10.2020',
-      active: true,
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.',
-    },
-    {
-      id: '2',
-      name: 'Chat 2',
-      date: '12.10.2020',
-      active: true,
-      content: 'Another chat content here with different information and context.',
-    },
-    {
-      id: '3',
-      name: 'Chat 3',
-      date: '12.10.2020',
-      active: false,
-      content: 'Third chat content.',
-    },
-  ];
-
-  openChats: any[] = [];
-  activeChat: any = null;
-
   logs: LogEntry[] = [
     {
       datetime: '2024-06-06 14:32:15',
@@ -267,33 +240,29 @@ export class TicketDetailviewComponent implements OnInit {
   ];
 
   toggleLogs() {
-    this.showLogs = !this.showLogs;
-    this.cdr.markForCheck();
+    this.showLogs.update((v) => !v);
   }
 
   onChatSelected(chat: any) {
     console.log('👆 Chat selected:', chat.id);
-    let existingChat = this.openChats.find((c) => c.id === chat.id);
+    let existingChat = this.openChats().find((c) => c.id === chat.id);
     if (!existingChat) {
-      const messages: ChatMessage[] = [];
       existingChat = {
         id: chat.id,
         name: chat.name || `Chat ${String(chat.id).substring(0, 7)}`,
         date: chat.date,
         active: chat.active,
         content: chat.content || '',
-        eventSource: null as EventSource | null,
-        messages,
+        eventSource: null,
+        messages: signal<ChatMessage[]>([]),
       };
-      this.openChats.push(existingChat);
+      const created = existingChat;
+      this.openChats.update((chats) => [...chats, created]);
     }
 
-    // Set active chat first so view switches immediately
-    this.activeChat = existingChat;
-    this.cdr.markForCheck();
-    this.refreshView(); // Force render the chat detail view instantly
+    // Switch the view to this chat (signal write → instant re-render).
+    this.activeChat.set(existingChat);
 
-    // Then connect to stream (async)
     if (!existingChat.eventSource) {
       console.log('🔌 Starting stream connection for chat:', chat.id);
       this.connectStream(existingChat);
@@ -304,14 +273,14 @@ export class TicketDetailviewComponent implements OnInit {
 
   /**
    * Open an SSE connection for a chat and route every event type the backend
-   * emits into the chat's `messages` array. text_delta tokens accumulate into
-   * the current message; tool calls become interactive approval cards. Each
-   * handler calls refreshView() so the zoneless app actually re-renders.
+   * emits into the chat's `messages` signal. text_delta tokens accumulate into
+   * the current message; tool calls become interactive approval cards. Every
+   * handler writes the signal, so the zoneless app re-renders automatically.
    *
    * The backend buffers and replays all prior events on subscribe, so we connect
    * straight to /api/chats/{id}/stream — no separate history fetch needed.
    */
-  private connectStream(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
+  private connectStream(chat: OpenChat): void {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
     const es = this.ticketService.streamChat(chatId);
     chat.eventSource = es;
@@ -319,43 +288,42 @@ export class TicketDetailviewComponent implements OnInit {
 
     console.log('🔌 connectStream: opening EventSource for', chatId, 'readyState:', es.readyState);
 
-    // Trigger immediate render to show "Connecting..."
-    this.refreshView();
-
     es.addEventListener('text_delta', (event: any) => {
       const content = JSON.parse(event.data).content || '';
       console.log('📝 text_delta:', content.substring(0, 50));
       if (!currentMessageId) {
-        currentMessageId = Math.random().toString();
-        chat.messages.push({ id: currentMessageId, content });
+        const id = Math.random().toString();
+        currentMessageId = id;
+        chat.messages.update((msgs) => [...msgs, { id, content }]);
       } else {
-        const lastMsg = chat.messages.find((m: ChatMessage) => m.id === currentMessageId);
-        if (lastMsg) {
-          lastMsg.content += content;
-        }
+        const id = currentMessageId;
+        chat.messages.update((msgs) =>
+          msgs.map((m) => (m.id === id ? { ...m, content: m.content + content } : m)),
+        );
       }
-      this.refreshView();
     });
 
     es.addEventListener('tool_call_requested', (event: any) => {
       const data = JSON.parse(event.data);
       console.log('🔧 tool_call_requested:', data.tool_name, data.tool_call_id);
       currentMessageId = '';
-      // Skip duplicates from replayed buffer.
-      if (chat.messages.some((m) => m.toolCall?.id === data.tool_call_id)) {
+      // Skip duplicates from the replayed buffer.
+      if (chat.messages().some((m) => m.toolCall?.id === data.tool_call_id)) {
         return;
       }
-      chat.messages.push({
-        id: data.tool_call_id,
-        content: '',
-        toolCall: {
+      chat.messages.update((msgs) => [
+        ...msgs,
+        {
           id: data.tool_call_id,
-          name: data.tool_name,
-          command: data.args?.command ?? JSON.stringify(data.args ?? {}),
-          status: data.auto_approved ? 'auto_approved' : 'pending',
+          content: '',
+          toolCall: {
+            id: data.tool_call_id,
+            name: data.tool_name,
+            command: data.args?.command ?? JSON.stringify(data.args ?? {}),
+            status: data.auto_approved ? 'auto_approved' : 'pending',
+          },
         },
-      });
-      this.refreshView();
+      ]);
     });
 
     es.addEventListener('tool_call_approved', (event: any) => {
@@ -382,23 +350,27 @@ export class TicketDetailviewComponent implements OnInit {
       const data = JSON.parse(event.data);
       console.log('✅ agent_completed:', data.summary);
       currentMessageId = '';
-      chat.messages.push({
-        id: Math.random().toString(),
-        content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
-      });
+      chat.messages.update((msgs) => [
+        ...msgs,
+        {
+          id: Math.random().toString(),
+          content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
+        },
+      ]);
       es.close();
-      this.refreshView();
     });
 
     es.addEventListener('agent_failed', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
-      chat.messages.push({
-        id: Math.random().toString(),
-        content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
-      });
+      chat.messages.update((msgs) => [
+        ...msgs,
+        {
+          id: Math.random().toString(),
+          content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
+        },
+      ]);
       es.close();
-      this.refreshView();
     });
 
     es.addEventListener('error', () => {
@@ -408,30 +380,28 @@ export class TicketDetailviewComponent implements OnInit {
       }
       console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
       es.close();
-      chat.messages.push({
-        id: Math.random().toString(),
-        content: `⚠️ Stream connection error. Check backend status.`,
-      });
-      this.refreshView();
+      chat.messages.update((msgs) => [
+        ...msgs,
+        {
+          id: Math.random().toString(),
+          content: `⚠️ Stream connection error. Check backend status.`,
+        },
+      ]);
     });
   }
 
-  /** Merge updated fields into a chat's tool-call message and re-render. */
-  private updateToolCall(
-    chat: { messages: ChatMessage[] },
-    toolCallId: string,
-    patch: Partial<ToolCallView>,
-  ): void {
-    const msg = chat.messages.find((m) => m.toolCall?.id === toolCallId);
-    if (msg?.toolCall) {
-      msg.toolCall = { ...msg.toolCall, ...patch };
-      this.refreshView();
-    }
+  /** Merge updated fields into a chat's tool-call message (immutably) and re-render. */
+  private updateToolCall(chat: OpenChat, toolCallId: string, patch: Partial<ToolCallView>): void {
+    chat.messages.update((msgs) =>
+      msgs.map((m) =>
+        m.toolCall?.id === toolCallId ? { ...m, toolCall: { ...m.toolCall, ...patch } } : m,
+      ),
+    );
   }
 
   /** Technician clicked ACCEPT/DECLINE on a tool-call card. */
   onToolCallResolved(event: { toolCallId: string; approved: boolean }): void {
-    const chat = this.activeChat;
+    const chat = this.activeChat();
     if (!chat) return;
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
 
@@ -450,34 +420,25 @@ export class TicketDetailviewComponent implements OnInit {
     });
   }
 
-  onChatTabSelected(chat: any) {
-    this.activeChat = chat;
-    this.cdr.markForCheck();
+  onChatTabSelected(chat: OpenChat) {
+    this.activeChat.set(chat);
   }
 
   onChatClosed(chatId: string | number) {
-    const index = this.openChats.findIndex((c) => c.id === chatId);
-    if (index !== -1) {
-      this.openChats.splice(index, 1);
-      if (this.activeChat?.id === chatId && this.openChats.length > 0) {
-        this.activeChat = this.openChats[0];
-      } else if (this.openChats.length === 0) {
-        this.activeChat = null;
-      }
+    const chats = this.openChats();
+    const index = chats.findIndex((c) => c.id === chatId);
+    if (index === -1) return;
+
+    const remaining = chats.filter((c) => c.id !== chatId);
+    this.openChats.set(remaining);
+
+    if (this.activeChat()?.id === chatId) {
+      this.activeChat.set(remaining.length > 0 ? remaining[0] : null);
     }
-    this.cdr.markForCheck();
   }
 
   onNewChatAdded() {
-    const newId = Math.max(...this.openChats.map((c) => c.id), 0) + 1;
-    const newChat = {
-      id: newId,
-      name: `Chat ${newId}`,
-      content: 'New chat content here.',
-    };
-    this.openChats.push(newChat);
-    this.activeChat = newChat;
-    this.cdr.markForCheck();
+    this.onCreateChatClicked();
   }
 
   onCreateChatClicked() {
@@ -486,25 +447,21 @@ export class TicketDetailviewComponent implements OnInit {
 
     this.ticketService.createChat(ticket.id.toString()).subscribe({
       next: (response) => {
-        const messages: ChatMessage[] = [];
         const chatId = typeof response.id === 'string' ? response.id : response.id.toString();
-        const newChat = {
+        const newChat: OpenChat = {
           id: response.id,
           name: `Chat ${chatId.substring(0, 7)}`,
           date: new Date(response.created_at).toLocaleDateString('de-AT'),
           active: true,
           content: '',
-          eventSource: null as EventSource | null,
-          messages,
+          eventSource: null,
+          messages: signal<ChatMessage[]>([]),
         };
 
-        this.openChats.push(newChat);
-        this.activeChat = newChat;
+        this.openChats.update((chats) => [...chats, newChat]);
+        this.activeChat.set(newChat);
         console.log('✅ Chat created, activeChat set:', newChat.id);
-        this.cdr.markForCheck();
-        this.refreshView(); // Switch view to chat detail instantly
 
-        // Then connect to stream (async)
         console.log('🔌 Starting stream connection');
         this.connectStream(newChat);
       },
@@ -515,7 +472,6 @@ export class TicketDetailviewComponent implements OnInit {
   }
 
   toggleLeftPanel() {
-    this.leftPanelCollapsed = !this.leftPanelCollapsed;
-    this.cdr.markForCheck();
+    this.leftPanelCollapsed.update((v) => !v);
   }
 }

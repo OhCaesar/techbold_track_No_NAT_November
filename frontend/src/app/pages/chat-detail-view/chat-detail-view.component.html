@@ -55,7 +55,9 @@
 
             @if (tc.status === 'pending') {
               <div class="execution-buttons">
-                <button class="approve-button" (click)="resolveToolCall(tc.id, true)">ACCEPT</button>
+                <button class="approve-button" (click)="resolveToolCall(tc.id, true)">
+                  ACCEPT
+                </button>
                 <button class="decline-button" (click)="resolveToolCall(tc.id, false)">
                   DECLINE
                 </button>

@@ -67,7 +67,14 @@ export class ChatDetailViewComponent {
   expandedThinking: { [key: string]: boolean } = {};
 
   get messages(): ChatMessage[] {
-    return this.activeChat?.messages || [];
+    // activeChat.messages is a signal in the live app (read it to track the
+    // reactive dependency so streamed updates re-render); tests may pass a plain
+    // array, so support both.
+    const m = this.activeChat?.messages;
+    if (typeof m === 'function') {
+      return m();
+    }
+    return m ?? [];
   }
 
   /** Connection placeholder shown only before the first event arrives. */
@@ -75,8 +82,9 @@ export class ChatDetailViewComponent {
     if (this.messages.length > 0) {
       return '';
     }
-    const streamState = this.activeChat?.eventSource?.readyState;
-    if (streamState === EventSource.OPEN) {
+    // EventSource.OPEN === 1; use the literal so this getter is safe in
+    // environments without the EventSource global (e.g. unit tests / SSR).
+    if (this.activeChat?.eventSource?.readyState === 1) {
       return '📡 Stream connected, waiting for agent response...';
     }
     return '⏳ Connecting to stream...';

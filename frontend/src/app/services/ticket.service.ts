@@ -38,8 +38,8 @@ export class TicketService {
 
   updateStatus(ticketId: number, status: TicketStatus): Observable<Ticket> {
     return this.http.patch<Ticket>(`${this.apiUrl}/${ticketId}/status`, { status });
-      }
-              
+  }
+
   getChats(ticketId: string): Observable<ChatListResponse> {
     const params = new HttpParams().set('ticket_id', ticketId);
     return this.http.get<ChatListResponse>(this.chatsUrl, { params });
