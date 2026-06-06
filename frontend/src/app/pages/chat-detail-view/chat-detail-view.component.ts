@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ExecutionDisplayComponent } from '../execution-display/execution-display.component';
+import { ExecutionDisplayComponent } from '../../components/execution-display/execution-display.component';
 
 export interface ToolClaim {
   name: string;

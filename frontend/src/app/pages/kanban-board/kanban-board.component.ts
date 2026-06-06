@@ -24,10 +24,10 @@ interface KanbanColumn {
   selector: 'kanban-board',
   standalone: true,
   imports: [DragDropModule],
-  templateUrl: './kanban-board.html',
-  styleUrls: ['./kanban-board.css'],
+  templateUrl: './kanban-board.component.html',
+  styleUrls: ['./kanban-board.component.css'],
 })
-export class KanbanBoard {
+export class KanbanBoardComponent {
   get columnIds(): string[] {
     return this.columns.map((c) => c.label);
   }

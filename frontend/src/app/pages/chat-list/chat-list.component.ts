@@ -4,10 +4,10 @@ import { NgFor } from '@angular/common';
 @Component({
   selector: 'chat-list',
   standalone: true,
-  templateUrl: './chat-list.html',
-  styleUrls: ['./chat-list.css'],
+  templateUrl: './chat-list.component.html',
+  styleUrls: ['./chat-list.component.css'],
 })
-export class ChatList {
+export class ChatListComponent {
   items = [
     {
       id: 1,

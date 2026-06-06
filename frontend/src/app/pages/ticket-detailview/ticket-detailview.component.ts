@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ChatSelectionComponent } from '../chat-selection/chat-selection.component';
+import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
 import { ChatDetailViewComponent } from '../chat-detail-view/chat-detail-view.component';
-import { TicketLogComponent, LogEntry } from '../ticket-log/ticket-log.component';
+import { TicketLogComponent, LogEntry } from '../../components/ticket-log/ticket-log.component';
 
 @Component({
   selector: 'app-ticket-detailview',
