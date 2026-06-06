@@ -1,23 +1,33 @@
 services:
   backend:
+    container_name: backend
     build: ./backend
     env_file:
       - path: .env
         required: false   # copy .env.example -> .env; the stack still starts without it
-    ports:
-      - "8000:8000"
     volumes:
       # Your SSH private key(s). Put your .pem in ./keys (git-ignored).
       - ./keys:/keys:ro
     extra_hosts:
       # Lets the container reach a Phoenix mock running on the host, if you run one.
       - "host.docker.internal:host-gateway"
+    networks:
+      - techbold
+
+
 
   frontend:
-    build: ./frontend
-    environment:
-      VITE_API_BASE: http://localhost:8000
+    container_name: frontend
+    build:
+      context: frontend
+      dockerfile: src/docker/Dockerfile
     ports:
-      - "5173:5173"
+      - "80:80"
     depends_on:
       - backend
+    networks:
+      - techbold
+
+networks:
+  techbold:
+    driver: bridge
