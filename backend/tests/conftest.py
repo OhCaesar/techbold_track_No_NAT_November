@@ -22,7 +22,9 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import get_db
 from app.erp.client import PhoenixClient, get_phoenix_client
 
 
@@ -55,6 +57,12 @@ def mock_erp_client() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_db() -> AsyncMock:
+    """A fully mocked AsyncSession."""
+    return AsyncMock(spec=AsyncSession)
+
+
+@pytest.fixture
 async def client(mock_erp_client: AsyncMock) -> AsyncIterator[AsyncClient]:
     """Async HTTP test client with the ERP dependency overridden."""
     test_app = _create_test_app()
@@ -63,6 +71,30 @@ async def client(mock_erp_client: AsyncMock) -> AsyncIterator[AsyncClient]:
         yield mock_erp_client
 
     test_app.dependency_overrides[get_phoenix_client] = _override_erp
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    test_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def client_with_db(
+    mock_erp_client: AsyncMock,
+    mock_db: AsyncMock,
+) -> AsyncIterator[AsyncClient]:
+    """Async HTTP test client with both the ERP and DB dependencies overridden."""
+    test_app = _create_test_app()
+
+    async def _override_erp():
+        yield mock_erp_client
+
+    async def _override_db():
+        yield mock_db
+
+    test_app.dependency_overrides[get_phoenix_client] = _override_erp
+    test_app.dependency_overrides[get_db] = _override_db
 
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ...erp.client import PhoenixClient, get_phoenix_client
 from ...erp.exceptions import PhoenixAPIError
 from ...erp.models import TicketStatus
-from .schemas import TicketListResponse, TicketResponse
+from .schemas import StatusUpdateRequest, TicketListResponse, TicketResponse
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -35,3 +35,22 @@ async def list_tickets(
 
     tickets = [TicketResponse.model_validate(t, from_attributes=True) for t in erp_tickets]
     return TicketListResponse(tickets=tickets, count=len(tickets))
+
+
+@router.patch(
+    "/{ticket_id}/status",
+    response_model=TicketResponse,
+    summary="Set ticket status",
+    description="Update the status of a ticket in the ERP system (OPEN, PENDING, or DONE).",
+)
+async def set_ticket_status(
+    ticket_id: int,
+    body: StatusUpdateRequest,
+    erp: PhoenixClient = Depends(get_phoenix_client),
+) -> TicketResponse:
+    try:
+        updated = await erp.set_ticket_status(ticket_id, body.status)
+    except PhoenixAPIError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc.detail)) from exc
+
+    return TicketResponse.model_validate(updated, from_attributes=True)

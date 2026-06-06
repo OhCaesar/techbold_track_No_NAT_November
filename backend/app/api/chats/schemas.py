@@ -41,3 +41,8 @@ class ChatResponse(BaseModel):
     ticket_id: str
     status: str
     created_at: datetime
+
+
+class ChatListResponse(BaseModel):
+    chats: list[ChatResponse]
+    count: int
