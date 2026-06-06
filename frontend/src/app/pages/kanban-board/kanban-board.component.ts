@@ -6,7 +6,7 @@ import {
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-import { Ticket } from '../../types/ticket';
+import { Ticket, TicketStatus } from '../../types/ticket';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TicketService } from '../../services/ticket.service';
@@ -109,12 +109,27 @@ export class KanbanBoard implements OnInit {
     if (event.previousContainer === event.container) {
       moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
     } else {
+      const card = event.previousContainer.data[event.previousIndex];
+      const newStatus = event.container.id as TicketStatus;
+
       transferArrayItem(
         event.previousContainer.data,
         event.container.data,
         event.previousIndex,
         event.currentIndex,
       );
+
+      this.ticketService.updateStatus(card.id, newStatus).subscribe({
+        error: (err) => {
+          console.error('Failed to update ticket status:', err);
+          transferArrayItem(
+            event.container.data,
+            event.previousContainer.data,
+            event.currentIndex,
+            event.previousIndex,
+          );
+        },
+      });
     }
   }
 }

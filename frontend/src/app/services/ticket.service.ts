@@ -1,7 +1,7 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { TicketListResponse } from '../types/ticket';
+import { Ticket, TicketListResponse, TicketStatus } from '../types/ticket';
 
 @Injectable({
   providedIn: 'root',
@@ -29,5 +29,9 @@ export class TicketService {
     }
 
     return this.http.get<TicketListResponse>(this.apiUrl, { params });
+  }
+
+  updateStatus(ticketId: number, status: TicketStatus): Observable<Ticket> {
+    return this.http.patch<Ticket>(`${this.apiUrl}/${ticketId}/status`, { status });
   }
 }
