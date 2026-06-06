@@ -338,8 +338,13 @@ export class TicketDetailviewComponent implements OnInit {
       });
 
       existingChat.eventSource.addEventListener('error', (event: Event) => {
+        console.error('Stream error for chat', chat.id, 'readyState:', existingChat.eventSource?.readyState);
         existingChat.eventSource?.close();
-        console.error('Stream error');
+        existingChat.messages.push({
+          id: Math.random().toString(),
+          content: `⚠️ Stream connection error. Check backend status.`,
+        });
+        this.cdr.markForCheck();
       });
     }
 
@@ -467,8 +472,13 @@ export class TicketDetailviewComponent implements OnInit {
         });
 
         newChat.eventSource.addEventListener('error', (event: Event) => {
+          console.error('Stream error for chat', response.id, 'readyState:', newChat.eventSource?.readyState);
           newChat.eventSource?.close();
-          console.error('Stream error');
+          newChat.messages.push({
+            id: Math.random().toString(),
+            content: `⚠️ Stream connection error. Check backend status.`,
+          });
+          this.cdr.markForCheck();
         });
 
         this.cdr.markForCheck();
