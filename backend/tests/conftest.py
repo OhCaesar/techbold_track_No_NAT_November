@@ -1,5 +1,8 @@
 """Shared test fixtures.
 
+anyio_backend is overridden here to restrict async test execution to asyncio
+only, preventing anyio from parametrizing tests against trio.
+
 The FastAPI app uses a lifespan that calls init_db() which requires a real
 Postgres connection. For unit tests we override the lifespan to a no-op so
 tests can run without any external services.
@@ -16,6 +19,12 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.erp.client import PhoenixClient, get_phoenix_client
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """Run all async tests under asyncio only (not trio)."""
+    return "asyncio"
 
 
 def _create_test_app() -> FastAPI:
