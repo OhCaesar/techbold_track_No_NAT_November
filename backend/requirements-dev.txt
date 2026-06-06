@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Testing
+pytest==8.3.5
+anyio[asyncio]==4.7.0
+pytest-anyio==0.0.0

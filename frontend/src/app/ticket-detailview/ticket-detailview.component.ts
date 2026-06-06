@@ -18,9 +18,28 @@ export class TicketDetailviewComponent {
   constructor(private cdr: ChangeDetectorRef) {}
 
   availableChats = [
-    { id: 1, name: 'Chatname', date: '12.10.2020', active: true, content: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.' },
-    { id: 2, name: 'Chatname 2', date: '12.10.2020', active: true, content: 'Another chat content here with different information and context.' },
-    { id: 3, name: 'Chatname 3', date: '12.10.2020', active: false, content: 'Third chat content.' },
+    {
+      id: 1,
+      name: 'Chatname',
+      date: '12.10.2020',
+      active: true,
+      content:
+        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.',
+    },
+    {
+      id: 2,
+      name: 'Chatname 2',
+      date: '12.10.2020',
+      active: true,
+      content: 'Another chat content here with different information and context.',
+    },
+    {
+      id: 3,
+      name: 'Chatname 3',
+      date: '12.10.2020',
+      active: false,
+      content: 'Third chat content.',
+    },
   ];
 
   openChats: any[] = [];
@@ -29,25 +48,29 @@ export class TicketDetailviewComponent {
   logs: LogEntry[] = [
     {
       datetime: '2024-06-06 14:32:15',
-      content: 'ls -la /var/log\ntotal 256\ndrwxr-xr-x 12 root root 4096 Jun  6 14:30 .\ndrwxr-xr-x 13 root root 4096 Jun  5 10:20 ..',
+      content:
+        'ls -la /var/log\ntotal 256\ndrwxr-xr-x 12 root root 4096 Jun  6 14:30 .\ndrwxr-xr-x 13 root root 4096 Jun  5 10:20 ..',
       riskLevel: 'Low',
       chatMessage: 'System Check',
     },
     {
       datetime: '2024-06-06 14:28:42',
-      content: 'systemctl status nginx\n● nginx.service - A high performance web server and a reverse proxy server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)',
+      content:
+        'systemctl status nginx\n● nginx.service - A high performance web server and a reverse proxy server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)',
       riskLevel: 'Medium',
       chatMessage: 'Service Status Query',
     },
     {
       datetime: '2024-06-06 14:25:08',
-      content: 'curl http://localhost:8080/health\n{"status":"error","uptime":"3422s","timestamp":"2024-06-06T14:25:08Z"}',
+      content:
+        'curl http://localhost:8080/health\n{"status":"error","uptime":"3422s","timestamp":"2024-06-06T14:25:08Z"}',
       riskLevel: 'High',
       chatMessage: 'Health Check Failed',
     },
     {
       datetime: '2024-06-06 14:20:33',
-      content: 'ps aux | grep java\nroot      1234  45.2 28.3 2847392 456824 ?      Sl   13:45   2:34 java -jar app.jar',
+      content:
+        'ps aux | grep java\nroot      1234  45.2 28.3 2847392 456824 ?      Sl   13:45   2:34 java -jar app.jar',
       riskLevel: 'Low',
       chatMessage: 'Process Monitor',
     },
@@ -59,7 +82,7 @@ export class TicketDetailviewComponent {
   }
 
   onChatSelected(chat: any) {
-    const existingChat = this.openChats.find(c => c.id === chat.id);
+    const existingChat = this.openChats.find((c) => c.id === chat.id);
     if (!existingChat) {
       this.openChats.push({ ...chat });
     }
@@ -73,7 +96,7 @@ export class TicketDetailviewComponent {
   }
 
   onChatClosed(chatId: number) {
-    const index = this.openChats.findIndex(c => c.id === chatId);
+    const index = this.openChats.findIndex((c) => c.id === chatId);
     if (index !== -1) {
       this.openChats.splice(index, 1);
       if (this.activeChat.id === chatId && this.openChats.length > 0) {
@@ -86,7 +109,7 @@ export class TicketDetailviewComponent {
   }
 
   onNewChatAdded() {
-    const newId = Math.max(...this.openChats.map(c => c.id), 0) + 1;
+    const newId = Math.max(...this.openChats.map((c) => c.id), 0) + 1;
     const newChat = {
       id: newId,
       name: `Chat ${newId}`,

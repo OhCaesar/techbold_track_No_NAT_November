@@ -1,18 +1,9 @@
 <div class="chat-container">
   <div class="chat-tabs">
     @for (chat of openChats; track chat.id) {
-      <div
-        class="chat-tab"
-        [class.active]="activeChat.id === chat.id"
-        (click)="selectChat(chat)"
-      >
+      <div class="chat-tab" [class.active]="activeChat?.id === chat.id" (click)="selectChat(chat)">
         <span class="tab-name">{{ chat.name }}</span>
-        <button
-          class="tab-close"
-          (click)="closeChat(chat.id); $event.stopPropagation()"
-        >
-          ✕
-        </button>
+        <button class="tab-close" (click)="closeChat(chat.id); $event.stopPropagation()">✕</button>
       </div>
     }
     <button class="add-chat-button" (click)="addNewChat()">+</button>
