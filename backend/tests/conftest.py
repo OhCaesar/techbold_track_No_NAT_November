@@ -10,6 +10,11 @@ tests can run without any external services.
 
 from __future__ import annotations
 
+import os
+
+# Set dummy OpenAI credentials to prevent initialization failures during tests
+os.environ.setdefault("OPENAI_API_KEY", "mock-key-for-testing")
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
