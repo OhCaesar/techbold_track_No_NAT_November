@@ -89,8 +89,7 @@ async def stream_chat(chat_id: uuid.UUID) -> EventSourceResponse:
                 event_type = event.pop("event", "message")
                 yield {"event": event_type, "data": json.dumps(event)}
         finally:
-            agent_event_bus._queues.pop(chat_id, None)
-            agent_event_bus._buffers.pop(chat_id, None)
+            agent_event_bus.unsubscribe(chat_id, q)
 
     return EventSourceResponse(_generate(), ping=3600)
 

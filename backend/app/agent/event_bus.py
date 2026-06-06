@@ -5,13 +5,14 @@ import uuid
 
 
 class AgentEventBus:
-    """Fans SSE events from a background agent task to one subscriber per chat.
+    """Fans SSE events from a background agent task to all active subscribers per chat.
 
     Events are buffered so late-connecting SSE clients receive the full history.
+    Multiple simultaneous subscribers are supported via fan-out.
     """
 
     def __init__(self) -> None:
-        self._queues: dict[uuid.UUID, asyncio.Queue[dict | None]] = {}
+        self._queues: dict[uuid.UUID, list[asyncio.Queue[dict | None]]] = {}
         self._buffers: dict[uuid.UUID, list[dict | None]] = {}
 
     def subscribe(self, chat_id: uuid.UUID) -> asyncio.Queue[dict | None]:
@@ -19,24 +20,35 @@ class AgentEventBus:
         q: asyncio.Queue[dict | None] = asyncio.Queue()
         for event in self._buffers.get(chat_id, []):
             q.put_nowait(event)
-        self._queues[chat_id] = q
+        self._queues.setdefault(chat_id, []).append(q)
         return q
 
+    def unsubscribe(self, chat_id: uuid.UUID, q: asyncio.Queue[dict | None]) -> None:
+        """Remove a specific subscriber queue without affecting others."""
+        queues = self._queues.get(chat_id)
+        if queues is not None:
+            try:
+                queues.remove(q)
+            except ValueError:
+                pass
+            if not queues:
+                self._queues.pop(chat_id, None)
+
     async def publish(self, chat_id: uuid.UUID, event: dict) -> None:
-        """Buffer and publish an event. Late subscribers will receive it on subscribe()."""
+        """Buffer and publish an event to all active subscribers."""
         self._buffers.setdefault(chat_id, []).append(event)
-        if q := self._queues.get(chat_id):
+        for q in self._queues.get(chat_id, []):
             await q.put(event)
 
     async def close(self, chat_id: uuid.UUID) -> None:
-        """Buffer the sentinel None and unregister the live queue."""
+        """Buffer the sentinel None and signal all active subscribers to stop."""
         self._buffers.setdefault(chat_id, []).append(None)
-        if q := self._queues.get(chat_id):
+        for q in self._queues.get(chat_id, []):
             await q.put(None)
         self._queues.pop(chat_id, None)
 
     def is_subscribed(self, chat_id: uuid.UUID) -> bool:
-        return chat_id in self._queues
+        return bool(self._queues.get(chat_id))
 
 
 agent_event_bus = AgentEventBus()
