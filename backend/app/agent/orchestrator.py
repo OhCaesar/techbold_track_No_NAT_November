@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -40,6 +41,7 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
             logger.error("start_agent: chat %s not found", chat_id)
             return
 
+        runner = None
         try:
             erp = PhoenixClient(settings.phoenix_api_base_url, settings.phoenix_api_token)
             try:
@@ -55,6 +57,7 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
                 username=customer_system.system.username,
                 ticket_id=int(ticket_id),
             )
+            await asyncio.to_thread(runner.open_connection)
 
             ctx = TicketContext(
                 chat_id=chat_id,
@@ -83,7 +86,11 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
             await db.commit()
 
             full_text = ""
-            async with autopilot_agent.run_stream(prompt, deps=ctx) as result:
+            async with autopilot_agent.run_stream(
+                prompt,
+                deps=ctx,
+                model_settings={"parallel_tool_calls": False},
+            ) as result:
                 async for delta in result.stream_text(delta=True):
                     full_text += delta
                     await agent_event_bus.publish(chat_id, {
@@ -137,6 +144,8 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
             })
 
         finally:
+            if runner is not None:
+                await asyncio.to_thread(runner.close_connection)
             await agent_event_bus.close(chat_id)
 
 

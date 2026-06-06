@@ -109,6 +109,7 @@ class FabricSSHRunner:
     ticket_id: int | None = None
     safety_guard: CommandSafetyGuard = field(default_factory=CommandSafetyGuard)
     _settings: Any = field(default_factory=get_settings, repr=False)
+    _conn: Connection | None = field(default=None, init=False, repr=False)
 
     def _make_connection(self) -> Connection:
         return Connection(
@@ -118,6 +119,21 @@ class FabricSSHRunner:
             connect_kwargs={"key_filename": self.key_path},
             connect_timeout=self._settings.ssh_connect_timeout,
         )
+
+    def open_connection(self) -> None:
+        """Open and hold a persistent SSH connection for the lifetime of a session."""
+        conn = self._make_connection()
+        conn.open()
+        self._conn = conn
+
+    def close_connection(self) -> None:
+        """Close the persistent SSH connection, swallowing errors on cleanup."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
 
     def run(self, command: str, *, raise_on_failure: bool = False) -> SSHResult:
         """
@@ -138,14 +154,23 @@ class FabricSSHRunner:
 
         start = time.monotonic()
         try:
-            with self._make_connection() as conn:
-                result = conn.run(
+            if self._conn is not None:
+                result = self._conn.run(
                     command,
-                    hide=True,     # suppress Fabric's own stdout echo
-                    warn=True,     # don't raise on non-zero exit — we handle it
+                    hide=True,
+                    warn=True,
                     timeout=self._settings.ssh_command_timeout,
-                    pty=False,     # keep stdout/stderr as separate streams
+                    pty=False,
                 )
+            else:
+                with self._make_connection() as conn:
+                    result = conn.run(
+                        command,
+                        hide=True,     # suppress Fabric's own stdout echo
+                        warn=True,     # don't raise on non-zero exit — we handle it
+                        timeout=self._settings.ssh_command_timeout,
+                        pty=False,     # keep stdout/stderr as separate streams
+                    )
         except (SSHException, OSError) as exc:
             raise SSHConnectionError(
                 f"Cannot connect to {self.host}:{self.port} — {exc}"

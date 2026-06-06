@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIModel
@@ -31,6 +32,7 @@ class TicketContext:
     port: int
     description: str
     runner: FabricSSHRunner
+    ssh_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +58,9 @@ Workflow:
 
 IMPORTANT: You must actually invoke the tools — do not just narrate what you would do. \
 The technician is waiting for real diagnostic output.
+
+IMPORTANT: Call only ONE tool at a time. Wait for the result before calling the next tool. \
+Never issue multiple run_ssh_command calls in the same turn.
 
 Hard limits — never call run_ssh_command with:
 - rm -rf on any system path (/, /etc, /var, /boot, /home, /usr)
@@ -153,12 +158,14 @@ def build_runner_for_customer(
 @autopilot_agent.tool
 async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
     """
-    Open an SSH connection to the customer VM and execute a single shell command.
+    Execute a single shell command on the customer VM over the persistent SSH connection.
 
     This is the only way to interact with the remote system. Call this for every
     diagnostic check and every fix — it connects automatically to the host returned
-    by get_ticket_context. Each call is an independent SSH session; no persistent
-    shell state is preserved between calls.
+    by get_ticket_context. The SSH connection is shared across all calls in a session;
+    each call runs in its own exec channel so shell state (cwd, env vars) does not
+    persist between calls. Commands run sequentially — the next call blocks until
+    the current one completes.
 
     Requires technician approval before the command actually runs.
 
@@ -207,56 +214,58 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
         "auto_approved": auto_approved,
     })
 
-    # 4. Block until the technician approves or rejects (skipped for read-only commands)
-    if auto_approved:
-        approved = True
-    else:
-        approved = await approval_gate.request_approval(tool_call.id)
+    # 4–7. Acquire the sequential lock — prevents concurrent SSH execution
+    async with deps.ssh_lock:
+        # 4. Block until the technician approves or rejects (skipped for read-only commands)
+        if auto_approved:
+            approved = True
+        else:
+            approved = await approval_gate.request_approval(tool_call.id)
 
-    if not approved:
+        if not approved:
+            async with AsyncSessionLocal() as db:
+                await update_tool_call_status(db, tool_call.id, "rejected")
+                await db.commit()
+            return "Command rejected by technician."
+
+        # 5. Execute via sync runner in a thread
+        try:
+            result: SSHResult = await asyncio.to_thread(deps.runner.run, command)
+        except SSHConnectionError as exc:
+            async with AsyncSessionLocal() as db:
+                await update_tool_call_status(db, tool_call.id, "executed")
+                await db.commit()
+            return f"CONNECTION_ERROR: {exc}"
+
+        # 6. Persist audit log and tool result message
         async with AsyncSessionLocal() as db:
-            await update_tool_call_status(db, tool_call.id, "rejected")
+            audit_log = await save_audit_log(
+                db, deps.chat_id, str(deps.ticket_id), result,
+            )
+            result_msg = await save_message(
+                db, deps.chat_id, "tool",
+                json.dumps({
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.exit_code,
+                }),
+            )
+            await update_tool_call_status(
+                db, tool_call.id, "executed",
+                result_message_id=result_msg.id,
+                audit_log_id=audit_log.id,
+            )
             await db.commit()
-        return "Command rejected by technician."
 
-    # 5. Execute via sync runner in a thread
-    try:
-        result: SSHResult = await asyncio.to_thread(deps.runner.run, command)
-    except SSHConnectionError as exc:
-        async with AsyncSessionLocal() as db:
-            await update_tool_call_status(db, tool_call.id, "executed")
-            await db.commit()
-        return f"CONNECTION_ERROR: {exc}"
-
-    # 6. Persist audit log and tool result message
-    async with AsyncSessionLocal() as db:
-        audit_log = await save_audit_log(
-            db, deps.chat_id, str(deps.ticket_id), result,
-        )
-        result_msg = await save_message(
-            db, deps.chat_id, "tool",
-            json.dumps({
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.exit_code,
-            }),
-        )
-        await update_tool_call_status(
-            db, tool_call.id, "executed",
-            result_message_id=result_msg.id,
-            audit_log_id=audit_log.id,
-        )
-        await db.commit()
-
-    # 7. Notify frontend of the result
-    await agent_event_bus.publish(deps.chat_id, {
-        "event": "tool_result",
-        "tool_call_id": str(tool_call.id),
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "exit_code": result.exit_code,
-        "blocked": False,
-    })
+        # 7. Notify frontend of the result
+        await agent_event_bus.publish(deps.chat_id, {
+            "event": "tool_result",
+            "tool_call_id": str(tool_call.id),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.exit_code,
+            "blocked": False,
+        })
 
     return (
         f"exit_code: {result.exit_code}\n"
