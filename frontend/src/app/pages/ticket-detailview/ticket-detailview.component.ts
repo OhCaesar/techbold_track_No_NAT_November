@@ -274,35 +274,66 @@ export class TicketDetailviewComponent implements OnInit {
     // Connect to stream if not already connected
     if (!existingChat.eventSource) {
       existingChat.eventSource = this.ticketService.streamChat(chat.id);
+      let currentMessageId = '';
 
       existingChat.eventSource.addEventListener('text_delta', (event: any) => {
         const data = JSON.parse(event.data);
-        if (!existingChat.messages.length || existingChat.messages[existingChat.messages.length - 1].content) {
+        const content = data.content || '';
+
+        if (!currentMessageId) {
+          currentMessageId = Math.random().toString();
           existingChat.messages.push({
-            id: Math.random().toString(),
-            content: data.content || '',
+            id: currentMessageId,
+            content: content,
           });
         } else {
-          existingChat.messages[existingChat.messages.length - 1].content += data.content || '';
+          const lastMsg = existingChat.messages.find((m: ChatMessage) => m.id === currentMessageId);
+          if (lastMsg) {
+            lastMsg.content += content;
+          }
         }
+        this.cdr.markForCheck();
+      });
+
+      existingChat.eventSource.addEventListener('tool_call_requested', (event: any) => {
+        const data = JSON.parse(event.data);
+        currentMessageId = Math.random().toString();
+        existingChat.messages.push({
+          id: currentMessageId,
+          content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
+        });
+        this.cdr.markForCheck();
+      });
+
+      existingChat.eventSource.addEventListener('tool_result', (event: any) => {
+        const data = JSON.parse(event.data);
+        currentMessageId = Math.random().toString();
+        existingChat.messages.push({
+          id: currentMessageId,
+          content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
+        });
         this.cdr.markForCheck();
       });
 
       existingChat.eventSource.addEventListener('agent_completed', (event: any) => {
         const data = JSON.parse(event.data);
+        currentMessageId = Math.random().toString();
         existingChat.messages.push({
-          id: Math.random().toString(),
-          content: `✓ Agent completed: ${data.summary || 'Task finished'}`,
+          id: currentMessageId,
+          content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
         });
+        existingChat.eventSource?.close();
         this.cdr.markForCheck();
       });
 
       existingChat.eventSource.addEventListener('agent_failed', (event: any) => {
         const data = JSON.parse(event.data);
+        currentMessageId = Math.random().toString();
         existingChat.messages.push({
-          id: Math.random().toString(),
-          content: `✗ Agent failed: ${data.error || 'Unknown error'}`,
+          id: currentMessageId,
+          content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
         });
+        existingChat.eventSource?.close();
         this.cdr.markForCheck();
       });
 
@@ -370,34 +401,68 @@ export class TicketDetailviewComponent implements OnInit {
         // Connect to stream and handle different event types
         newChat.eventSource = this.ticketService.streamChat(response.id);
 
+        let currentMessageId = '';
+
         newChat.eventSource.addEventListener('text_delta', (event: any) => {
           const data = JSON.parse(event.data);
-          if (!newChat.messages.length || newChat.messages[newChat.messages.length - 1].content) {
+          const content = data.content || '';
+
+          // If we don't have a current message, create one
+          if (!currentMessageId) {
+            currentMessageId = Math.random().toString();
             newChat.messages.push({
-              id: Math.random().toString(),
-              content: data.content || '',
+              id: currentMessageId,
+              content: content,
             });
           } else {
-            newChat.messages[newChat.messages.length - 1].content += data.content || '';
+            // Append to the current message
+            const lastMsg = newChat.messages.find((m: ChatMessage) => m.id === currentMessageId);
+            if (lastMsg) {
+              lastMsg.content += content;
+            }
           }
+          this.cdr.markForCheck();
+        });
+
+        newChat.eventSource.addEventListener('tool_call_requested', (event: any) => {
+          const data = JSON.parse(event.data);
+          currentMessageId = Math.random().toString();
+          newChat.messages.push({
+            id: currentMessageId,
+            content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
+          });
+          this.cdr.markForCheck();
+        });
+
+        newChat.eventSource.addEventListener('tool_result', (event: any) => {
+          const data = JSON.parse(event.data);
+          currentMessageId = Math.random().toString();
+          newChat.messages.push({
+            id: currentMessageId,
+            content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
+          });
           this.cdr.markForCheck();
         });
 
         newChat.eventSource.addEventListener('agent_completed', (event: any) => {
           const data = JSON.parse(event.data);
+          currentMessageId = Math.random().toString();
           newChat.messages.push({
-            id: Math.random().toString(),
-            content: `✓ Agent completed: ${data.summary || 'Task finished'}`,
+            id: currentMessageId,
+            content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
           });
+          newChat.eventSource?.close();
           this.cdr.markForCheck();
         });
 
         newChat.eventSource.addEventListener('agent_failed', (event: any) => {
           const data = JSON.parse(event.data);
+          currentMessageId = Math.random().toString();
           newChat.messages.push({
-            id: Math.random().toString(),
-            content: `✗ Agent failed: ${data.error || 'Unknown error'}`,
+            id: currentMessageId,
+            content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
           });
+          newChat.eventSource?.close();
           this.cdr.markForCheck();
         });
 
