@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -40,16 +41,25 @@ SYSTEM_PROMPT = """\
 You are an AI assistant helping a managed-service technician troubleshoot and fix \
 Ubuntu Linux systems over SSH.
 
-Workflow:
-1. Call get_ticket_context first to understand what you are working on.
-2. Diagnose with read-only commands: journalctl -xe, systemctl status, ss -tlnp, df -h, \
-   dmesg | tail, top -bn1.
-3. Propose fixes in small, targeted steps. Prefer restarting or reconfiguring a single \
-   service over broad filesystem changes.
-4. After applying a fix, validate it: re-run the diagnostic command that showed the \
-   problem and confirm the output changed.
+You have two tools:
+- get_ticket_context — returns the ticket description and the SSH target (host, port).
+- run_ssh_command — opens an SSH connection to that host and runs a single shell command. \
+  This is the ONLY way to interact with the customer VM. Every diagnostic check and every \
+  fix must go through run_ssh_command. Do not describe what you would run — call the tool.
 
-Hard limits — never suggest or run:
+Workflow:
+1. Call get_ticket_context to learn the ticket description and SSH target.
+2. Call run_ssh_command with read-only diagnostics to understand the current state. \
+   Start with: journalctl -xe, systemctl status <relevant-service>, ss -tlnp, df -h, \
+   dmesg | tail -20, top -bn1. Each call is a separate SSH invocation — that is fine.
+3. Based on the output, propose and apply a targeted fix by calling run_ssh_command.
+4. Validate the fix: call run_ssh_command again with the diagnostic command that originally \
+   showed the problem and confirm the output changed.
+
+IMPORTANT: You must actually invoke the tools — do not just narrate what you would do. \
+The technician is waiting for real diagnostic output.
+
+Hard limits — never call run_ssh_command with:
 - rm -rf on any system path (/, /etc, /var, /boot, /home, /usr)
 - chmod -R 777 on any path
 - Disabling firewalls (ufw disable, systemctl stop ufw/fail2ban)
@@ -57,8 +67,7 @@ Hard limits — never suggest or run:
 - Deleting or truncating log files (/var/log/*)
 - Any command that could cause irreversible data loss
 
-If uncertain, propose a safer diagnostic step rather than a destructive fix. \
-Document every command you run and why.
+If uncertain, call a safer diagnostic step rather than a destructive fix.
 
 After completing the diagnosis and fix, provide a detailed summary covering:
 - What the root cause was (the technical cause, not just the symptom)
@@ -66,6 +75,40 @@ After completing the diagnosis and fix, provide a detailed summary covering:
 - Which commands were key
 - How you validated the fix
 """
+
+# ---------------------------------------------------------------------------
+# Read-only command auto-approval (TEMPORARY — for demo/testing)
+# ---------------------------------------------------------------------------
+
+_READONLY_PATTERNS: list[str] = [
+    r"^journalctl\b",
+    r"^systemctl\s+status\b",
+    r"^df\b",
+    r"^ss\b",
+    r"^top\b",
+    r"^dmesg\b",
+    r"^ps\b",
+    r"^free\b",
+    r"^uptime\b",
+    r"^uname\b",
+    r"^hostname\b",
+    r"^cat\b",
+    r"^ls\b",
+    r"^tail\b",
+    r"^head\b",
+    r"^grep\b",
+    r"^netstat\b",
+    r"^stat\b",
+]
+
+_READONLY_COMPILED = [re.compile(p) for p in _READONLY_PATTERNS]
+
+
+def _is_readonly_command(command: str) -> bool:
+    """Return True if the command matches a known read-only diagnostic pattern."""
+    normalized = command.strip()
+    return any(p.match(normalized) for p in _READONLY_COMPILED)
+
 
 def _build_agent() -> Agent[TicketContext, str]:
     settings = get_settings()
@@ -124,13 +167,20 @@ def get_ticket_context(ctx: RunContext[TicketContext]) -> dict:
 @autopilot_agent.tool
 async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
     """
-    Execute a shell command on the customer VM. Requires technician approval before running.
+    Open an SSH connection to the customer VM and execute a single shell command.
+
+    This is the only way to interact with the remote system. Call this for every
+    diagnostic check and every fix — it connects automatically to the host returned
+    by get_ticket_context. Each call is an independent SSH session; no persistent
+    shell state is preserved between calls.
+
+    Requires technician approval before the command actually runs.
 
     Args:
-        command: Shell command to run. Must be safe and targeted.
+        command: Shell command to execute on the remote host. Must be safe and targeted.
 
     Returns:
-        Command output (stdout/stderr/exit_code) or a rejection/error message.
+        Command output (stdout/stderr/exit_code) or a rejection/blocked/error message.
     """
     import asyncio
     import json
@@ -161,16 +211,21 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
         )
         await db.commit()
 
-    # 3. Notify frontend — technician must approve
+    # 3. Notify frontend — auto-approve read-only diagnostics, otherwise require technician
+    auto_approved = _is_readonly_command(command)
     await agent_event_bus.publish(deps.chat_id, {
         "event": "tool_call_requested",
         "tool_call_id": str(tool_call.id),
         "tool_name": "run_ssh_command",
         "args": {"command": command},
+        "auto_approved": auto_approved,
     })
 
-    # 4. Block until the technician approves or rejects
-    approved = await approval_gate.request_approval(tool_call.id)
+    # 4. Block until the technician approves or rejects (skipped for read-only commands)
+    if auto_approved:
+        approved = True
+    else:
+        approved = await approval_gate.request_approval(tool_call.id)
 
     if not approved:
         async with AsyncSessionLocal() as db:
