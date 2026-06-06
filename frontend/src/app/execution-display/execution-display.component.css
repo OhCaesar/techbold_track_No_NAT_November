@@ -26,7 +26,8 @@
 }
 
 @keyframes pulse-running {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -233,7 +234,8 @@
 }
 
 @keyframes progress-running {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
   }
   50% {

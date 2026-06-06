@@ -25,7 +25,10 @@
             </div>
             <div class="step-progress-bar">
               @if (step.status === 'running') {
-                <div class="progress-fill running" [style.width]="(step.progress || 30) + '%'"></div>
+                <div
+                  class="progress-fill running"
+                  [style.width]="(step.progress || 30) + '%'"
+                ></div>
               } @else if (step.status === 'success') {
                 <div class="progress-fill success" style="width: 100%"></div>
               } @else if (step.status === 'error') {

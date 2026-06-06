@@ -86,7 +86,7 @@ export class TicketDetailviewComponent {
     if (!existingChat) {
       this.openChats.push({ ...chat });
     }
-    this.activeChat = this.openChats.find(c => c.id === chat.id);
+    this.activeChat = this.openChats.find((c) => c.id === chat.id);
     this.cdr.markForCheck();
   }
 

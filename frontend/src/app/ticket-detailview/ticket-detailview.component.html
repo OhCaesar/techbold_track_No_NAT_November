@@ -1,6 +1,10 @@
 <div class="container">
   <div class="left-panel" [class.collapsed]="leftPanelCollapsed">
-    <button class="toggle-panel-button" (click)="toggleLeftPanel()" [title]="leftPanelCollapsed ? 'Expand' : 'Collapse'">
+    <button
+      class="toggle-panel-button"
+      (click)="toggleLeftPanel()"
+      [title]="leftPanelCollapsed ? 'Expand' : 'Collapse'"
+    >
       {{ leftPanelCollapsed ? '→' : '←' }}
     </button>
 
