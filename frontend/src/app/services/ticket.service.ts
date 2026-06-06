@@ -53,7 +53,8 @@ export class TicketService {
     return this.http.post(this.chatsUrl, { ticket_id: ticketId });
   }
 
-  streamChat(chatId: string): EventSource {
-    return new EventSource(`http://localhost/api/chats/${chatId}/stream`);
+  streamChat(chatId: string | object): EventSource {
+    const id = typeof chatId === 'string' ? chatId : (chatId as any).id;
+    return new EventSource(`http://localhost/api/chats/${id}/stream`);
   }
 }

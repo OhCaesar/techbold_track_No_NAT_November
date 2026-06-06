@@ -253,11 +253,41 @@ export class TicketDetailviewComponent implements OnInit {
   }
 
   onChatSelected(chat: any) {
-    const existingChat = this.openChats.find((c) => c.id === chat.id);
+    let existingChat = this.openChats.find((c) => c.id === chat.id);
     if (!existingChat) {
-      this.openChats.push({ ...chat });
+      const messages: ChatMessage[] = [];
+      existingChat = {
+        id: chat.id,
+        name: chat.name,
+        date: chat.date,
+        active: chat.active,
+        content: chat.content || '',
+        eventSource: null as EventSource | null,
+        messages,
+      };
+      this.openChats.push(existingChat);
     }
-    this.activeChat = this.openChats.find((c) => c.id === chat.id);
+
+    // Connect to stream if not already connected
+    if (!existingChat.eventSource) {
+      existingChat.eventSource = this.ticketService.streamChat(chat.id);
+      existingChat.eventSource.addEventListener('message', (event: MessageEvent) => {
+        const data = JSON.parse(event.data);
+        existingChat.messages.push({
+          id: Math.random().toString(),
+          content: data.content || data.message || '',
+          thinkingProcess: data.thinking || '',
+        });
+        this.cdr.markForCheck();
+      });
+
+      existingChat.eventSource.addEventListener('error', (event: Event) => {
+        existingChat.eventSource?.close();
+        console.error('Stream error');
+      });
+    }
+
+    this.activeChat = existingChat;
     this.cdr.markForCheck();
   }
 
@@ -299,20 +329,21 @@ export class TicketDetailviewComponent implements OnInit {
       next: (response) => {
         const messages: ChatMessage[] = [];
         const newChat = {
-          id: parseInt(response.id),
+          id: response.id,
           name: `Chat ${response.id}`,
           date: new Date(response.created_at).toLocaleDateString('de-AT'),
           active: true,
           content: '',
-          eventSource: this.ticketService.streamChat(response.id),
+          eventSource: null as EventSource | null,
           messages,
         };
 
         this.openChats.push(newChat);
         this.activeChat = newChat;
 
-        // Subscribe to stream events
-        newChat.eventSource.addEventListener('message', (event) => {
+        // Connect to stream
+        newChat.eventSource = this.ticketService.streamChat(response.id);
+        newChat.eventSource.addEventListener('message', (event: MessageEvent) => {
           const data = JSON.parse(event.data);
           newChat.messages.push({
             id: Math.random().toString(),
@@ -322,8 +353,9 @@ export class TicketDetailviewComponent implements OnInit {
           this.cdr.markForCheck();
         });
 
-        newChat.eventSource.addEventListener('error', () => {
+        newChat.eventSource.addEventListener('error', (event: Event) => {
           newChat.eventSource?.close();
+          console.error('Stream error');
         });
 
         this.cdr.markForCheck();
