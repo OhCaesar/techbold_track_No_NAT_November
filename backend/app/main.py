@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db.session import init_db
+import app.db.models  # noqa: F401 — registers ORM models with Base.metadata
 
 
 @asynccontextmanager
