@@ -47,8 +47,6 @@ services:
 
 volumes:
   postgres_data:
-    networks:
-      - techbold
 
 networks:
   techbold:
