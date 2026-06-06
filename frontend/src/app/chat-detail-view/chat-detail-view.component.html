@@ -1,32 +1,23 @@
 <div class="chat-container">
   <div class="chat-tabs">
     @for (chat of openChats; track chat.id) {
-      <div
-        class="chat-tab"
-        [class.active]="activeChat.id === chat.id"
-        (click)="selectChat(chat)"
-      >
+      <div class="chat-tab" [class.active]="activeChat?.id === chat.id" (click)="selectChat(chat)">
         <span class="tab-name">{{ chat.name }}</span>
-        <button
-          class="tab-close"
-          (click)="closeChat(chat.id); $event.stopPropagation()"
-        >
-          ✕
-        </button>
+        <button class="tab-close" (click)="closeChat(chat.id); $event.stopPropagation()">✕</button>
       </div>
     }
     <button class="add-chat-button" (click)="addNewChat()">+</button>
   </div>
 
   <div class="chat-content">
-    <p>{{ activeChat.content }}</p>
+    <p>{{ activeChat?.content }}</p>
 
     <div class="chat-input-section">
       <div class="input-box">
         <span class="info-icon">ℹ</span>
       </div>
 
-      <p>{{ activeChat.content }}</p>
+      <p>{{ activeChat?.content }}</p>
 
       <div class="shell-section">
         <span class="shell-label">2 SHELL</span>
@@ -37,7 +28,7 @@
         <button class="decline-button">DECLINE</button>
       </div>
 
-      <p>{{ activeChat.content }}</p>
+      <p>{{ activeChat?.content }}</p>
 
       <div class="speak-input">
         <span class="search-icon">🔍</span>
