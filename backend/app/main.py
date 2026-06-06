@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api import api_router
 from .db.session import init_db
 import app.db.models  # noqa: F401 — registers ORM models with Base.metadata
 
@@ -36,9 +37,5 @@ def health():
     return {"status": "ok"}
 
 
-# TODO: add your routes. A typical shape (yours may differ):
-#   GET  /api/tickets              -> list tickets (via your Phoenix client)
-#   GET  /api/tickets/{id}         -> ticket + customer system
-#   POST /api/runs                 -> start an agent troubleshooting run
-#   POST /api/runs/{id}/approve    -> run the approved command over SSH
-#   POST /api/runs/{id}/activity   -> submit the activity to the ERP
+app.include_router(api_router)
+
