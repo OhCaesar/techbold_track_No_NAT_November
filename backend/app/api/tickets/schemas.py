@@ -40,3 +40,9 @@ class TicketListResponse(BaseModel):
 
     tickets: list[TicketResponse]
     count: int
+
+
+class StatusUpdateRequest(BaseModel):
+    """Request body for updating a ticket's status."""
+
+    status: TicketStatus

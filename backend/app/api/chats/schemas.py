@@ -59,3 +59,7 @@ class ToolCallResponse(BaseModel):
 
 class ApprovalRequest(BaseModel):
     approved: bool
+
+class ChatListResponse(BaseModel):
+    chats: list[ChatResponse]
+    count: int

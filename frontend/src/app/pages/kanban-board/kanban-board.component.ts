@@ -8,6 +8,7 @@ import {
 } from '@angular/cdk/drag-drop';
 import { Ticket } from '../../types/ticket';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { TicketService } from '../../services/ticket.service';
 
 interface KanbanCard {
@@ -27,7 +28,7 @@ interface KanbanColumn {
 @Component({
   selector: 'kanban-board',
   standalone: true,
-  imports: [DragDropModule, KanbanSwitchToggleComponent, CommonModule],
+  imports: [DragDropModule, KanbanSwitchToggleComponent, CommonModule, RouterLink],
   templateUrl: './kanban-board.component.html',
   styleUrls: ['./kanban-board.component.css'],
 })
