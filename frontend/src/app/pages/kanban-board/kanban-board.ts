@@ -1,10 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import {
   CdkDragDrop,
   DragDropModule,
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
+import { TicketService } from '../../services/ticket.service';
+import { Ticket } from '../../types/ticket';
 
 interface KanbanCard {
   id: number;
@@ -23,13 +26,81 @@ interface KanbanColumn {
 @Component({
   selector: 'kanban-board',
   standalone: true,
-  imports: [DragDropModule],
+  imports: [DragDropModule, CommonModule],
   templateUrl: './kanban-board.html',
   styleUrls: ['./kanban-board.css'],
 })
-export class KanbanBoard {
+export class KanbanBoard implements OnInit {
+  columns = signal<KanbanColumn[]>([]);
+  isLoading = signal(true);
+  error = signal<string | null>(null);
+
+  constructor(private ticketService: TicketService) {}
+
+  ngOnInit(): void {
+    this.loadTickets();
+  }
+
   get columnIds(): string[] {
-    return this.columns.map((c) => c.label);
+    return this.columns().map((c) => c.label);
+  }
+
+  private loadTickets(): void {
+    this.isLoading.set(true);
+    this.error.set(null);
+
+    this.ticketService.getTickets().subscribe({
+      next: (response) => {
+        this.columns.set(this.groupTicketsByStatus(response.tickets));
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        this.error.set('Failed to load tickets');
+        console.error('Error loading tickets:', err);
+        this.isLoading.set(false);
+      },
+    });
+  }
+
+  private groupTicketsByStatus(tickets: Ticket[]): KanbanColumn[] {
+    const statusMap: Record<string, Ticket[]> = {
+      OPEN: [],
+      PENDING: [],
+      DONE: [],
+    };
+
+    tickets.forEach((ticket) => {
+      if (ticket.status in statusMap) {
+        statusMap[ticket.status].push(ticket);
+      }
+    });
+
+    return [
+      {
+        label: 'OPEN',
+        cards: this.mapTicketsToCards(statusMap['OPEN']),
+      },
+      {
+        label: 'PENDING',
+        cards: this.mapTicketsToCards(statusMap['PENDING']),
+      },
+      {
+        label: 'DONE',
+        cards: this.mapTicketsToCards(statusMap['DONE']),
+      },
+    ];
+  }
+
+  private mapTicketsToCards(tickets: Ticket[]): KanbanCard[] {
+    return tickets.map((ticket) => ({
+      id: ticket.id,
+      company: ticket.customer_name,
+      title: ticket.title,
+      priority: ticket.priority,
+      dueDate: ticket.sla_due_at
+        ? new Date(ticket.sla_due_at).toLocaleDateString('de-AT')
+        : 'Kein Datum',
+    }));
   }
 
   drop(event: CdkDragDrop<KanbanCard[]>): void {
@@ -44,80 +115,4 @@ export class KanbanBoard {
       );
     }
   }
-
-  columns: KanbanColumn[] = [
-    {
-      label: 'OPEN',
-      cards: [
-        {
-          id: 1,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'MEDIUM',
-          dueDate: 'X.X.XXX',
-        },
-        {
-          id: 2,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'EASY',
-          dueDate: 'X.X.XXX',
-        },
-        {
-          id: 3,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'EASY',
-          dueDate: 'X.X.XXX',
-        },
-      ],
-    },
-    {
-      label: 'In Progress',
-      cards: [
-        {
-          id: 4,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'HIGH',
-          dueDate: 'X.X.XXX',
-          count: 5,
-        },
-      ],
-    },
-    {
-      label: 'Done',
-      cards: [
-        {
-          id: 5,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'HIGH',
-          dueDate: 'X.X.XXX',
-          count: 5,
-        },
-        {
-          id: 6,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'MEDIUM',
-          dueDate: 'X.X.XXX',
-        },
-        {
-          id: 7,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'EASY',
-          dueDate: 'X.X.XXX',
-        },
-        {
-          id: 8,
-          company: 'Nordlicht Logistik GmbH',
-          title: 'Status API intermittently unavailable',
-          priority: 'EASY',
-          dueDate: 'X.X.XXX',
-        },
-      ],
-    },
-  ];
 }

@@ -116,3 +116,26 @@
 .kanban-column__cards.cdk-drop-list-dragging .kanban-card:not(.cdk-drag-placeholder) {
   transition: transform 200ms ease;
 }
+
+.kanban-loading,
+.kanban-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 24px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.kanban-loading {
+  color: #6b7280;
+}
+
+.kanban-error {
+  color: #dc2626;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  margin: 40px 24px;
+  padding: 20px;
+}
