@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
-import { TicketDetailviewComponent } from './ticket-detailview/ticket-detailview.component';
-import { ChatList } from './pages/chat-list/chat-list';
-import { KanbanBoard } from './pages/kanban-board/kanban-board';
+import { TicketDetailviewComponent } from './pages/ticket-detailview/ticket-detailview.component';
+import { TicketListComponent } from './pages/ticket-list/ticket-list.component';
+import { KanbanBoard } from './pages/kanban-board/kanban-board.component';
 
 export const routes: Routes = [
   {
@@ -10,13 +10,13 @@ export const routes: Routes = [
     component: KanbanBoard,
   },
   {
-    path: 'ticket-detail',
+    path: 'ticket-detail/:id',
     title: 'Ticket details',
     component: TicketDetailviewComponent,
   },
   {
     path: '**',
-    title: 'List chats',
-    component: ChatList,
+    title: 'List tickets',
+    component: TicketListComponent,
   },
 ];

@@ -1,13 +1,14 @@
+import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-list-toggle.component';
 import { Component, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import {
   CdkDragDrop,
   DragDropModule,
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-import { TicketService } from '../../services/ticket.service';
 import { Ticket } from '../../types/ticket';
+import { CommonModule } from '@angular/common';
+import { TicketService } from '../../services/ticket.service';
 
 interface KanbanCard {
   id: number;
@@ -26,9 +27,9 @@ interface KanbanColumn {
 @Component({
   selector: 'kanban-board',
   standalone: true,
-  imports: [DragDropModule, CommonModule],
-  templateUrl: './kanban-board.html',
-  styleUrls: ['./kanban-board.css'],
+  imports: [DragDropModule, KanbanSwitchToggleComponent, CommonModule],
+  templateUrl: './kanban-board.component.html',
+  styleUrls: ['./kanban-board.component.css'],
 })
 export class KanbanBoard implements OnInit {
   columns = signal<KanbanColumn[]>([]);

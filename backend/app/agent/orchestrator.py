@@ -12,8 +12,7 @@ from ..db.models import AuditLog, Chat
 from ..db.session import AsyncSessionLocal
 from ..erp.client import PhoenixClient
 from ..erp.models import ActivityCreate, TicketStatus
-from ..ssh.runner import FabricSSHRunner
-from .agent import TicketContext, autopilot_agent
+from .agent import TicketContext, autopilot_agent, build_runner_for_customer
 from .event_bus import agent_event_bus
 from .persistence import save_message
 
@@ -47,9 +46,11 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
             finally:
                 await erp.close()
 
-            runner = FabricSSHRunner(
+            runner = build_runner_for_customer(
+                customer_id=customer_system.customer_id,
                 host=customer_system.system.ip,
                 port=customer_system.system.port,
+                username=customer_system.system.username,
                 ticket_id=int(ticket_id),
             )
 

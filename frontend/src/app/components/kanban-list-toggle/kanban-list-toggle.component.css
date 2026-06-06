@@ -1,0 +1,32 @@
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 16px 24px 0;
+  justify-content: center;
+}
+
+.toggle-btn {
+  padding: 8px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.toggle-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.toggle-btn.active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}

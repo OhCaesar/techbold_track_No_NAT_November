@@ -104,6 +104,8 @@ class FabricSSHRunner:
 
     host: str
     port: int = 22
+    username: str = "azureuser"
+    key_path: str = "/keys/id_rsa"
     ticket_id: int | None = None
     safety_guard: CommandSafetyGuard = field(default_factory=CommandSafetyGuard)
     _settings: Any = field(default_factory=get_settings, repr=False)
@@ -112,8 +114,8 @@ class FabricSSHRunner:
         return Connection(
             host=self.host,
             port=self.port,
-            user=self._settings.ssh_username,
-            connect_kwargs={"key_filename": self._settings.ssh_private_key_path},
+            user=self.username,
+            connect_kwargs={"key_filename": self.key_path},
             connect_timeout=self._settings.ssh_connect_timeout,
         )
 
@@ -164,7 +166,7 @@ class FabricSSHRunner:
             "SSH_AUDIT host=%s port=%d user=%s ticket=%s exit=%d duration_ms=%d cmd=%r",
             self.host,
             self.port,
-            self._settings.ssh_username,
+            self.username,
             self.ticket_id,
             ssh_result.exit_code,
             duration_ms,

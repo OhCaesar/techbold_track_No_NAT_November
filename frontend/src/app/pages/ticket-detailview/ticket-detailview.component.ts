@@ -1,7 +1,16 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ChatSelectionComponent } from '../chat-selection/chat-selection.component';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
 import { ChatDetailViewComponent } from '../chat-detail-view/chat-detail-view.component';
-import { TicketLogComponent, LogEntry } from '../ticket-log/ticket-log.component';
+import { TicketLogComponent, LogEntry } from '../../components/ticket-log/ticket-log.component';
+import { TicketService } from '../../services/ticket.service';
+import { Ticket } from '../../types/ticket';
 
 @Component({
   selector: 'app-ticket-detailview',
@@ -11,11 +20,52 @@ import { TicketLogComponent, LogEntry } from '../ticket-log/ticket-log.component
   styleUrl: './ticket-detailview.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TicketDetailviewComponent {
+export class TicketDetailviewComponent implements OnInit {
   showLogs = false;
   leftPanelCollapsed = false;
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  ticket = signal<Ticket | null>(null);
+  isLoading = signal(true);
+  error = signal<string | null>(null);
+
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute,
+    private ticketService: TicketService,
+  ) {}
+
+  ngOnInit(): void {
+    this.route.params.subscribe((params) => {
+      const ticketId = params['id'];
+      if (ticketId) {
+        this.loadTicket(ticketId);
+      }
+    });
+  }
+
+  private loadTicket(ticketId: string): void {
+    this.isLoading.set(true);
+    this.error.set(null);
+
+    this.ticketService.getTickets().subscribe({
+      next: (response) => {
+        const ticket = response.tickets.find((t) => t.id.toString() === ticketId);
+        if (ticket) {
+          this.ticket.set(ticket);
+        } else {
+          this.error.set('Ticket not found');
+        }
+        this.isLoading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.error.set('Failed to load ticket');
+        console.error('Error loading ticket:', err);
+        this.isLoading.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
 
   availableChats = [
     {

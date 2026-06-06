@@ -1,0 +1,53 @@
+<div class="page-wrapper">
+  <app-kanban-switch-toggle activeView="list"></app-kanban-switch-toggle>
+
+  @if (error()) {
+    <div class="list-error">
+      <p>{{ error() }}</p>
+    </div>
+  } @else if (isLoading()) {
+    <div class="list-loading">
+      <p>Tickets werden geladen...</p>
+    </div>
+  } @else {
+    <div class="chat-list">
+      @for (item of items(); track item.id) {
+        <div class="chat-item" [routerLink]="['/ticket-detail', item.id]">
+          <div class="chat-item__left">
+            <span class="chat-item__company">{{ item.company }}</span>
+            <span class="chat-item__title">{{ item.title }}</span>
+          </div>
+
+          <div class="chat-item__priority">
+            <span class="chat-item__label">Priority</span>
+            <span
+              class="chat-item__priority-value"
+              [class]="'priority-' + item.priority.toLowerCase()"
+              >{{ item.priority }}</span
+            >
+          </div>
+
+          <div class="chat-item__due-date">
+            <span class="chat-item__label">Due Date</span>
+            <span class="chat-item__due-date-value">{{ item.dueDate }}</span>
+          </div>
+
+          <div class="chat-item__tags">
+            <span class="chat-item__label">Tags</span>
+            <div class="chat-item__tags-list">
+              @for (tag of item.tags; track tag) {
+                <span>{{ tag }}</span>
+              }
+            </div>
+          </div>
+
+          <div class="chat-item__count">
+            @if (item.count) {
+              <span class="chat-item__count-value">{{ item.count }}</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

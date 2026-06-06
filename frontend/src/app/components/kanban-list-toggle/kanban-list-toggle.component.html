@@ -1,0 +1,12 @@
+<div class="view-toggle">
+  <button class="toggle-btn" [class.active]="activeView === 'list'" [routerLink]="['/']">
+    List
+  </button>
+  <button
+    class="toggle-btn"
+    [class.active]="activeView === 'kanban'"
+    [routerLink]="['/kanban-board']"
+  >
+    Kanban
+  </button>
+</div>

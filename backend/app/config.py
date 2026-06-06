@@ -11,8 +11,7 @@ class Settings(BaseSettings):
     phoenix_api_token: str = ""
 
     # SSH
-    ssh_private_key_path: str = "/keys/id_rsa"
-    ssh_username: str = "azureuser"
+    ssh_keys_dir: str = "/keys"
     ssh_connect_timeout: int = 10
     ssh_command_timeout: int = 60
 
