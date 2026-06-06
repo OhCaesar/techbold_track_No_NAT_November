@@ -1,0 +1,23 @@
+<div class="log-container">
+  <h2 class="log-title">Logs</h2>
+
+  <div class="logs-list">
+    @for (log of logs; track $index) {
+      <div class="log-entry">
+        <div class="log-header">
+          <div class="log-meta">
+            <p class="log-datetime">{{ log.datetime }}</p>
+            <span class="risk-badge" [ngClass]="getRiskLevelClass(log.riskLevel)">
+              {{ log.riskLevel }}
+            </span>
+          </div>
+          <p class="log-chat-message">{{ log.chatMessage }}</p>
+        </div>
+
+        <div class="log-content">
+          <code>{{ log.content }}</code>
+        </div>
+      </div>
+    }
+  </div>
+</div>

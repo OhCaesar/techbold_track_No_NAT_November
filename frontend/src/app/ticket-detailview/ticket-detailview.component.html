@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <button class="logs-button">
+    <button class="logs-button" (click)="toggleLogs()">
       <span class="logs-icon">
         <svg
           width="24"
@@ -65,15 +65,25 @@
   </div>
 
   <div class="right-panel">
-    <h2 class="chat-title">New Chat</h2>
-
-    <div class="chat-list">
-      @for (chat of chats; track $index) {
-        <app-chat-list-element [chatName]="chat.name" [chatDate]="chat.date" [active]="chat.active">
-        </app-chat-list-element>
+    @if (!showLogs) {
+      @if (activeChat === null) {
+        <app-chat-selection
+          [availableChats]="availableChats"
+          (chatSelected)="onChatSelected($event)"
+        >
+        </app-chat-selection>
+      } @else {
+        <app-chat-detail-view
+          [openChats]="openChats"
+          [activeChat]="activeChat"
+          (chatSelected)="onChatTabSelected($event)"
+          (chatClosed)="onChatClosed($event)"
+          (newChatAdded)="onNewChatAdded()"
+        >
+        </app-chat-detail-view>
       }
-    </div>
-
-    <button class="create-button">Create</button>
+    } @else {
+      <app-ticket-log [logs]="logs"></app-ticket-log>
+    }
   </div>
 </div>
