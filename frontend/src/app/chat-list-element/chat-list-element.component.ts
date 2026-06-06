@@ -5,7 +5,7 @@ import { Component, Input } from '@angular/core';
   standalone: true,
   imports: [],
   templateUrl: './chat-list-element.component.html',
-  styleUrl: './chat-list-element.component.css'
+  styleUrl: './chat-list-element.component.css',
 })
 export class ChatListElementComponent {
   @Input() chatName: string = 'CHAT';

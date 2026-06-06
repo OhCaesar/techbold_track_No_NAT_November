@@ -6,12 +6,12 @@ import { ChatListElementComponent } from '../chat-list-element/chat-list-element
   standalone: true,
   imports: [ChatListElementComponent],
   templateUrl: './ticket-detailview.component.html',
-  styleUrl: './ticket-detailview.component.css'
+  styleUrl: './ticket-detailview.component.css',
 })
 export class TicketDetailviewComponent {
   chats = [
     { name: 'Chatname', date: '12.10.2020', active: true },
     { name: 'Chatname', date: '12.10.2020', active: true },
-    { name: 'Chatname', date: '12.10.2020', active: false }
+    { name: 'Chatname', date: '12.10.2020', active: false },
   ];
 }
