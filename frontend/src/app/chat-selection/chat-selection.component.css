@@ -1,0 +1,33 @@
+.chat-selector {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 60px 40px;
+  overflow-y: auto;
+}
+
+.selector-title {
+  margin: 0 0 40px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.chat-list-selector {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-list-item-wrapper {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.chat-list-item-wrapper:hover {
+  transform: translateY(-2px);
+}
