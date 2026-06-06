@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import os
 
-# Set dummy credentials before any app modules are imported, so that
-# module-level agent/client construction doesn't fail in tests.
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-not-used")
 os.environ.setdefault("PHOENIX_API_TOKEN", "test-not-used")
 os.environ.setdefault("PHOENIX_API_BASE_URL", "http://test-not-used")
