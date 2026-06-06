@@ -1,3 +1,9 @@
+<div class="page-wrapper">
+<div class="view-toggle">
+  <button class="toggle-btn active">List</button>
+  <button class="toggle-btn" [routerLink]="['/kanban-board']">Kanban</button>
+</div>
+
 <div class="chat-list">
   @for (item of items; track item.id) {
     <div class="chat-item" [routerLink]="['/ticket-detail', item.id]">
@@ -34,4 +40,5 @@
       </div>
     </div>
   }
+</div>
 </div>
