@@ -10,7 +10,7 @@ export const routes: Routes = [
     component: KanbanBoardComponent,
   },
   {
-    path: 'ticket-detail',
+    path: 'ticket-detail/:id',
     title: 'Ticket details',
     component: TicketDetailviewComponent,
   },

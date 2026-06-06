@@ -1,6 +1,6 @@
 <div class="chat-list">
   @for (item of items; track item.id) {
-    <div class="chat-item">
+    <div class="chat-item" [routerLink]="['/ticket-detail', item.id]">
       <div class="chat-item__left">
         <span class="chat-item__company">{{ item.company }}</span>
         <span class="chat-item__title">{{ item.title }}</span>

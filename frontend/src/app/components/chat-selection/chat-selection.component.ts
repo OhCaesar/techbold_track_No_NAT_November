@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { ChatListElementComponent } from '../chat-list-element/chat-list-element.component';
+import {ChatListElementComponent} from '../chat-list-element/chat-list-element.component';
 
 @Component({
   selector: 'app-chat-selection',

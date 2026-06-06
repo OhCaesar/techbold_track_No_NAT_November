@@ -1,7 +1,7 @@
 import { Component, Input } from '@angular/core';
 
 @Component({
-  selector: 'app-ticket-list-element',
+  selector: 'app-chat-list-element',
   standalone: true,
   imports: [],
   templateUrl: './chat-list-element.component.html',
