@@ -27,7 +27,7 @@ services:
         required: false   # copy .env.example -> .env; the stack still starts without it
     volumes:
       # Your SSH private key(s). Put your .pem in ./keys (git-ignored).
-      - ./keys:/keys:ro
+      - ./keys:/keys:ro,z
     extra_hosts:
       # Lets the container reach a Phoenix mock running on the host, if you run one.
       - "host.docker.internal:host-gateway"
