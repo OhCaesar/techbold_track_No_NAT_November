@@ -1,11 +1,11 @@
 import { Component } from '@angular/core';
-import { NgFor } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-switch-toggle.component';
 
 @Component({
   selector: 'ticket-list',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, KanbanSwitchToggleComponent],
   templateUrl: './ticket-list.component.html',
   styleUrls: ['./ticket-list.component.css'],
 })

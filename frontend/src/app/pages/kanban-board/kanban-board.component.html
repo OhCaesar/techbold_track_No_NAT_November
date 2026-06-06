@@ -1,8 +1,5 @@
 <div class="page-wrapper">
-<div class="view-toggle">
-  <button class="toggle-btn" [routerLink]="['/']">List</button>
-  <button class="toggle-btn active">Kanban</button>
-</div>
+<app-kanban-switch-toggle activeView="kanban"></app-kanban-switch-toggle>
 
 <div class="kanban-board">
   @for (column of columns; track column.label) {

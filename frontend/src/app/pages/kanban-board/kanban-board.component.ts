@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-switch-toggle.component';
 import {
   CdkDragDrop,
   DragDropModule,
@@ -24,7 +25,7 @@ interface KanbanColumn {
 @Component({
   selector: 'kanban-board',
   standalone: true,
-  imports: [DragDropModule, RouterLink],
+  imports: [DragDropModule, RouterLink, KanbanSwitchToggleComponent],
   templateUrl: './kanban-board.component.html',
   styleUrls: ['./kanban-board.component.css'],
 })

@@ -1,8 +1,5 @@
 <div class="page-wrapper">
-<div class="view-toggle">
-  <button class="toggle-btn active">List</button>
-  <button class="toggle-btn" [routerLink]="['/kanban-board']">Kanban</button>
-</div>
+<app-kanban-switch-toggle activeView="list"></app-kanban-switch-toggle>
 
 <div class="chat-list">
   @for (item of items; track item.id) {
