@@ -7,6 +7,18 @@ export interface ToolClaim {
   used: boolean;
 }
 
+export type ToolCallStatus = 'pending' | 'auto_approved' | 'approved' | 'rejected' | 'executed';
+
+/** A backend-driven SSH tool call rendered as an interactive approval card. */
+export interface ToolCallView {
+  id: string;
+  name: string;
+  command: string;
+  status: ToolCallStatus;
+  output?: string;
+  exitCode?: number;
+}
+
 export interface ExecutionStep {
   id: string;
   name: string;
@@ -34,6 +46,7 @@ export interface ChatMessage {
   executionApproved?: boolean;
   shellCommand?: string;
   execution?: Execution;
+  toolCall?: ToolCallView;
 }
 
 @Component({
@@ -49,43 +62,33 @@ export class ChatDetailViewComponent {
   @Output() chatSelected = new EventEmitter<any>();
   @Output() chatClosed = new EventEmitter<number>();
   @Output() newChatAdded = new EventEmitter<void>();
+  @Output() toolCallResolved = new EventEmitter<{ toolCallId: string; approved: boolean }>();
 
   expandedThinking: { [key: string]: boolean } = {};
 
-  messages: ChatMessage[] = [
-    {
-      id: '1',
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.',
-      thinkingProcess: 'Analyzing the API status and gathering system information...',
-      toolClaims: [
-        { name: 'API Check', used: true },
-        { name: 'System Monitor', used: true },
-        { name: 'Log Parser', used: false },
-      ],
-      executionApproved: true,
-      shellCommand: 'curl http://localhost:8080/status',
-      execution: {
-        id: 'exec-1',
-        type: 'SHELL',
-        command: 'curl http://localhost:8080/status',
-        output: '{"status":"error","code":500,"message":"Service Unavailable","uptime":"3422s"}',
-        status: 'success',
-        duration: 245,
-        timestamp: '2024-06-06 14:32:15',
-        steps: [
-          { id: 'step-1', name: 'prepare ...', status: 'success', progress: 100, duration: 50 },
-          { id: 'step-2', name: 'execute ...', status: 'success', progress: 100, duration: 150 },
-          { id: 'step-3', name: 'parse ...', status: 'success', progress: 100, duration: 45 },
-        ],
-      },
-    },
-    {
-      id: '2',
-      content:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam volutua.',
-    },
-  ];
+  get messages(): ChatMessage[] {
+    // activeChat.messages is a signal in the live app (read it to track the
+    // reactive dependency so streamed updates re-render); tests may pass a plain
+    // array, so support both.
+    const m = this.activeChat?.messages;
+    if (typeof m === 'function') {
+      return m();
+    }
+    return m ?? [];
+  }
+
+  /** Connection placeholder shown only before the first event arrives. */
+  get streamStatus(): string {
+    if (this.messages.length > 0) {
+      return '';
+    }
+    // EventSource.OPEN === 1; use the literal so this getter is safe in
+    // environments without the EventSource global (e.g. unit tests / SSR).
+    if (this.activeChat?.eventSource?.readyState === 1) {
+      return '📡 Stream connected, waiting for agent response...';
+    }
+    return '⏳ Connecting to stream...';
+  }
 
   selectChat(chat: any) {
     this.chatSelected.emit(chat);
@@ -119,5 +122,10 @@ export class ChatDetailViewComponent {
     if (message) {
       message.executionApproved = false;
     }
+  }
+
+  /** Technician approved/rejected an SSH tool call — bubble it up to the parent. */
+  resolveToolCall(toolCallId: string, approved: boolean) {
+    this.toolCallResolved.emit({ toolCallId, approved });
   }
 }

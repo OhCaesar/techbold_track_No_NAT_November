@@ -31,3 +31,33 @@
 .chat-list-item-wrapper:hover {
   transform: translateY(-2px);
 }
+
+.create-chat-button {
+  margin-top: 40px;
+  padding: 12px 32px;
+  background-color: #000000;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.create-chat-button:hover {
+  background-color: #1a1a1a;
+  transform: translateY(-2px);
+}
+
+.create-chat-button:active {
+  transform: translateY(0);
+}
+
+.plus-icon {
+  font-size: 20px;
+  font-weight: bold;
+}

@@ -11,8 +11,13 @@ import { ChatListElementComponent } from '../chat-list-element/chat-list-element
 export class ChatSelectionComponent {
   @Input() availableChats: any[] = [];
   @Output() chatSelected = new EventEmitter<any>();
+  @Output() createChatClicked = new EventEmitter<void>();
 
   selectChat(chat: any) {
     this.chatSelected.emit(chat);
+  }
+
+  onCreateChatClick() {
+    this.createChatClicked.emit();
   }
 }

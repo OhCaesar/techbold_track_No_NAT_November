@@ -18,14 +18,14 @@
       </svg>
       <span>Back</span>
     </button>
-    @if (leftPanelCollapsed == false) {
+    @if (leftPanelCollapsed() === false) {
       <button class="toggle-panel-button" (click)="toggleLeftPanel()" [title]="'Collapse'">
         ←
       </button>
     }
   </div>
 
-  <div class="left-panel" [class.collapsed]="leftPanelCollapsed">
+  <div class="left-panel" [class.collapsed]="leftPanelCollapsed()">
     @if (isLoading()) {
       <p class="loading">Ticket wird geladen...</p>
     } @else if (error()) {
@@ -35,20 +35,22 @@
 
       <h1 class="ticket-title">{{ ticket()!.title }}</h1>
 
-      <div class="system-info">
-        <div class="info-item">
-          <p class="info-label">SYSTEM</p>
-          <p class="info-value">UBUNTU 22.04 LTS</p>
+      @if (customer()) {
+        <div class="system-info">
+          <div class="info-item">
+            <p class="info-label">SYSTEM</p>
+            <p class="info-value">{{ customer()!.system.os }}</p>
+          </div>
+          <div class="info-item">
+            <p class="info-label">IP</p>
+            <p class="info-value">{{ customer()!.system.ip }}</p>
+          </div>
+          <div class="info-item">
+            <p class="info-label">PORT</p>
+            <p class="info-value">{{ customer()!.system.port }}</p>
+          </div>
         </div>
-        <div class="info-item">
-          <p class="info-label">IP</p>
-          <p class="info-value">10.0.0.5</p>
-        </div>
-        <div class="info-item">
-          <p class="info-label">PORT</p>
-          <p class="info-value">22</p>
-        </div>
-      </div>
+      }
 
       <button class="logs-button" (click)="toggleLogs()">
         <span class="logs-icon">
@@ -88,27 +90,29 @@
     }
   </div>
 
-  <div class="right-panel" [class.collapsed-left]="leftPanelCollapsed">
-    @if (leftPanelCollapsed && !showLogs) {
+  <div class="right-panel" [class.collapsed-left]="leftPanelCollapsed()">
+    @if (leftPanelCollapsed() && !showLogs()) {
       <button class="expand-panel-button" (click)="toggleLeftPanel()" title="Expand panel">
         ← Open
       </button>
     }
 
-    @if (!showLogs) {
-      @if (activeChat === null) {
+    @if (!showLogs()) {
+      @if (activeChat() === null) {
         <app-chat-selection
-          [availableChats]="availableChats"
+          [availableChats]="availableChats()"
           (chatSelected)="onChatSelected($event)"
+          (createChatClicked)="onCreateChatClicked()"
         >
         </app-chat-selection>
       } @else {
         <app-chat-detail-view
-          [openChats]="openChats"
-          [activeChat]="activeChat"
+          [openChats]="openChats()"
+          [activeChat]="activeChat()"
           (chatSelected)="onChatTabSelected($event)"
           (chatClosed)="onChatClosed($event)"
           (newChatAdded)="onNewChatAdded()"
+          (toolCallResolved)="onToolCallResolved($event)"
         >
         </app-chat-detail-view>
       }
