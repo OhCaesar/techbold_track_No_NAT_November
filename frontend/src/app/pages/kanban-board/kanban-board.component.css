@@ -33,7 +33,9 @@
   border: 2px dashed transparent;
   border-radius: 14px;
   padding: 4px;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .kanban-column__cards.cdk-drop-list-receiving {
