@@ -7,7 +7,7 @@ import { TicketListResponse } from '../types/ticket';
   providedIn: 'root',
 })
 export class TicketService {
-  private apiUrl = '/api/tickets';
+  private apiUrl = 'http://localhost:80/api/tickets';
 
   constructor(private http: HttpClient) {}
 
