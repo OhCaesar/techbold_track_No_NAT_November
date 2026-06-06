@@ -1,13 +1,25 @@
-"""FastAPI entrypoint — skeleton.
+"""FastAPI entrypoint.
 
-This is intentionally minimal. Build your own API here for the frontend to call,
-and consume the Phoenix ERP mock from your backend (see docs/phoenix-openapi.yaml).
 Keep the ERP token and the SSH key on the backend — never in the browser.
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="techbold AI Service Desk Autopilot — Team Backend")
+from .db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(
+    title="techbold AI Service Desk Autopilot — Team Backend",
+    lifespan=lifespan,
+)
 
 # Open CORS for local dev so your React app can call this backend.
 app.add_middleware(
