@@ -56,6 +56,12 @@ export class ChatDetailViewComponent {
     return this.activeChat?.messages || this.defaultMessages;
   }
 
+  /** All streamed responses for the active chat, joined for a simple <p> dump. */
+  get streamedText(): string {
+    const msgs: ChatMessage[] = this.activeChat?.messages || [];
+    return msgs.map((m) => m.content).join('\n\n');
+  }
+
   defaultMessages: ChatMessage[] = [
     {
       id: '1',

@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
+  ApplicationRef,
   OnInit,
   signal,
   SecurityContext,
@@ -36,10 +37,21 @@ export class TicketDetailviewComponent implements OnInit {
 
   constructor(
     private cdr: ChangeDetectorRef,
+    private appRef: ApplicationRef,
     private route: ActivatedRoute,
     private ticketService: TicketService,
     private sanitizer: DomSanitizer,
   ) {}
+
+  /**
+   * Force a synchronous change-detection pass. Required because this is a
+   * zoneless app (no zone.js): EventSource callbacks are not signal writes,
+   * so markForCheck() alone never schedules a render. tick() is safe here
+   * because SSE callbacks run as async macrotasks, never during an active CD.
+   */
+  private refreshView(): void {
+    this.appRef.tick();
+  }
 
   ngOnInit(): void {
     this.route.params.subscribe((params) => {
@@ -273,83 +285,93 @@ export class TicketDetailviewComponent implements OnInit {
 
     // Connect to stream if not already connected
     if (!existingChat.eventSource) {
-      existingChat.eventSource = this.ticketService.streamChat(chat.id);
-      let currentMessageId = '';
-
-      existingChat.eventSource.addEventListener('text_delta', (event: any) => {
-        const data = JSON.parse(event.data);
-        const content = data.content || '';
-
-        if (!currentMessageId) {
-          currentMessageId = Math.random().toString();
-          existingChat.messages.push({
-            id: currentMessageId,
-            content: content,
-          });
-        } else {
-          const lastMsg = existingChat.messages.find((m: ChatMessage) => m.id === currentMessageId);
-          if (lastMsg) {
-            lastMsg.content += content;
-          }
-        }
-        this.cdr.markForCheck();
-      });
-
-      existingChat.eventSource.addEventListener('tool_call_requested', (event: any) => {
-        const data = JSON.parse(event.data);
-        currentMessageId = Math.random().toString();
-        existingChat.messages.push({
-          id: currentMessageId,
-          content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
-        });
-        this.cdr.markForCheck();
-      });
-
-      existingChat.eventSource.addEventListener('tool_result', (event: any) => {
-        const data = JSON.parse(event.data);
-        currentMessageId = Math.random().toString();
-        existingChat.messages.push({
-          id: currentMessageId,
-          content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
-        });
-        this.cdr.markForCheck();
-      });
-
-      existingChat.eventSource.addEventListener('agent_completed', (event: any) => {
-        const data = JSON.parse(event.data);
-        currentMessageId = Math.random().toString();
-        existingChat.messages.push({
-          id: currentMessageId,
-          content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
-        });
-        existingChat.eventSource?.close();
-        this.cdr.markForCheck();
-      });
-
-      existingChat.eventSource.addEventListener('agent_failed', (event: any) => {
-        const data = JSON.parse(event.data);
-        currentMessageId = Math.random().toString();
-        existingChat.messages.push({
-          id: currentMessageId,
-          content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
-        });
-        existingChat.eventSource?.close();
-        this.cdr.markForCheck();
-      });
-
-      existingChat.eventSource.addEventListener('error', (event: Event) => {
-        console.error('Stream error for chat', chat.id, 'readyState:', existingChat.eventSource?.readyState);
-        existingChat.eventSource?.close();
-        existingChat.messages.push({
-          id: Math.random().toString(),
-          content: `⚠️ Stream connection error. Check backend status.`,
-        });
-        this.cdr.markForCheck();
-      });
+      this.connectStream(existingChat);
     }
 
     this.activeChat = existingChat;
     this.cdr.markForCheck();
+  }
+
+  /**
+   * Open an SSE connection for a chat and route every event type the backend
+   * emits into the chat's `messages` array. text_delta tokens accumulate into
+   * the current message; every other event starts a fresh message. Each handler
+   * calls refreshView() so the zoneless app actually re-renders.
+   */
+  private connectStream(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
+    const es = this.ticketService.streamChat(chat.id);
+    chat.eventSource = es;
+    let currentMessageId = '';
+
+    es.addEventListener('text_delta', (event: any) => {
+      const content = JSON.parse(event.data).content || '';
+      if (!currentMessageId) {
+        currentMessageId = Math.random().toString();
+        chat.messages.push({ id: currentMessageId, content });
+      } else {
+        const lastMsg = chat.messages.find((m: ChatMessage) => m.id === currentMessageId);
+        if (lastMsg) {
+          lastMsg.content += content;
+        }
+      }
+      this.refreshView();
+    });
+
+    es.addEventListener('tool_call_requested', (event: any) => {
+      const data = JSON.parse(event.data);
+      currentMessageId = '';
+      chat.messages.push({
+        id: Math.random().toString(),
+        content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
+      });
+      this.refreshView();
+    });
+
+    es.addEventListener('tool_result', (event: any) => {
+      const data = JSON.parse(event.data);
+      currentMessageId = '';
+      chat.messages.push({
+        id: Math.random().toString(),
+        content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
+      });
+      this.refreshView();
+    });
+
+    es.addEventListener('agent_completed', (event: any) => {
+      const data = JSON.parse(event.data);
+      currentMessageId = '';
+      chat.messages.push({
+        id: Math.random().toString(),
+        content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
+      });
+      es.close();
+      this.refreshView();
+    });
+
+    es.addEventListener('agent_failed', (event: any) => {
+      const data = JSON.parse(event.data);
+      currentMessageId = '';
+      chat.messages.push({
+        id: Math.random().toString(),
+        content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
+      });
+      es.close();
+      this.refreshView();
+    });
+
+    es.addEventListener('error', () => {
+      // EventSource fires 'error' on normal close too; only surface it while connecting/open.
+      if (es.readyState === EventSource.CLOSED) {
+        return;
+      }
+      console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
+      es.close();
+      chat.messages.push({
+        id: Math.random().toString(),
+        content: `⚠️ Stream connection error. Check backend status.`,
+      });
+      this.refreshView();
+    });
   }
 
   onChatTabSelected(chat: any) {
@@ -403,85 +425,9 @@ export class TicketDetailviewComponent implements OnInit {
         this.openChats.push(newChat);
         this.activeChat = newChat;
 
-        // Connect to stream and handle different event types
-        newChat.eventSource = this.ticketService.streamChat(response.id);
+        this.connectStream(newChat);
 
-        let currentMessageId = '';
-
-        newChat.eventSource.addEventListener('text_delta', (event: any) => {
-          const data = JSON.parse(event.data);
-          const content = data.content || '';
-
-          // If we don't have a current message, create one
-          if (!currentMessageId) {
-            currentMessageId = Math.random().toString();
-            newChat.messages.push({
-              id: currentMessageId,
-              content: content,
-            });
-          } else {
-            // Append to the current message
-            const lastMsg = newChat.messages.find((m: ChatMessage) => m.id === currentMessageId);
-            if (lastMsg) {
-              lastMsg.content += content;
-            }
-          }
-          this.cdr.markForCheck();
-        });
-
-        newChat.eventSource.addEventListener('tool_call_requested', (event: any) => {
-          const data = JSON.parse(event.data);
-          currentMessageId = Math.random().toString();
-          newChat.messages.push({
-            id: currentMessageId,
-            content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
-          });
-          this.cdr.markForCheck();
-        });
-
-        newChat.eventSource.addEventListener('tool_result', (event: any) => {
-          const data = JSON.parse(event.data);
-          currentMessageId = Math.random().toString();
-          newChat.messages.push({
-            id: currentMessageId,
-            content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
-          });
-          this.cdr.markForCheck();
-        });
-
-        newChat.eventSource.addEventListener('agent_completed', (event: any) => {
-          const data = JSON.parse(event.data);
-          currentMessageId = Math.random().toString();
-          newChat.messages.push({
-            id: currentMessageId,
-            content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
-          });
-          newChat.eventSource?.close();
-          this.cdr.markForCheck();
-        });
-
-        newChat.eventSource.addEventListener('agent_failed', (event: any) => {
-          const data = JSON.parse(event.data);
-          currentMessageId = Math.random().toString();
-          newChat.messages.push({
-            id: currentMessageId,
-            content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
-          });
-          newChat.eventSource?.close();
-          this.cdr.markForCheck();
-        });
-
-        newChat.eventSource.addEventListener('error', (event: Event) => {
-          console.error('Stream error for chat', response.id, 'readyState:', newChat.eventSource?.readyState);
-          newChat.eventSource?.close();
-          newChat.messages.push({
-            id: Math.random().toString(),
-            content: `⚠️ Stream connection error. Check backend status.`,
-          });
-          this.cdr.markForCheck();
-        });
-
-        this.cdr.markForCheck();
+        this.refreshView();
       },
       error: (err) => {
         console.error('Error creating chat:', err);
