@@ -4,8 +4,11 @@ import {
   ChangeDetectorRef,
   OnInit,
   signal,
+  SecurityContext,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { DomSanitizer } from '@angular/platform-browser';
+import { marked } from 'marked';
 import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
 import { ChatDetailViewComponent } from '../chat-detail-view/chat-detail-view.component';
 import { TicketLogComponent, LogEntry } from '../../components/ticket-log/ticket-log.component';
@@ -15,7 +18,7 @@ import { Ticket } from '../../types/ticket';
 @Component({
   selector: 'app-ticket-detailview',
   standalone: true,
-  imports: [ChatSelectionComponent, ChatDetailViewComponent, TicketLogComponent],
+  imports: [ChatSelectionComponent, ChatDetailViewComponent, TicketLogComponent, RouterLink],
   templateUrl: './ticket-detailview.component.html',
   styleUrl: './ticket-detailview.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,6 +28,7 @@ export class TicketDetailviewComponent implements OnInit {
   leftPanelCollapsed = false;
 
   ticket = signal<Ticket | null>(null);
+  renderedDescription = signal<string>('');
   isLoading = signal(true);
   error = signal<string | null>(null);
 
@@ -32,6 +36,7 @@ export class TicketDetailviewComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
     private ticketService: TicketService,
+    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit(): void {
@@ -52,6 +57,7 @@ export class TicketDetailviewComponent implements OnInit {
         const ticket = response.tickets.find((t) => t.id.toString() === ticketId);
         if (ticket) {
           this.ticket.set(ticket);
+          this.renderMarkdown(ticket.description);
         } else {
           this.error.set('Ticket not found');
         }
@@ -65,6 +71,80 @@ export class TicketDetailviewComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  private async renderMarkdown(markdown: string): Promise<void> {
+    try {
+      const processed = this.preprocessMarkdown(markdown);
+      const html = await marked(processed);
+      const sanitized = this.sanitizer.sanitize(SecurityContext.HTML, html) || '';
+      this.renderedDescription.set(sanitized);
+      this.cdr.markForCheck();
+    } catch (error) {
+      console.error('Error rendering markdown:', error);
+      this.renderedDescription.set(markdown);
+      this.cdr.markForCheck();
+    }
+  }
+
+  private preprocessMarkdown(markdown: string): string {
+    // Convert lines that look like commands into code blocks
+    // Pattern: lines starting with sudo, apt, systemctl, curl, etc. or containing shell syntax
+    const lines = markdown.split('\n');
+    const result: string[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Check if line is a command (starts with command keywords or contains shell syntax)
+      const isCommand =
+        /^(sudo|apt|systemctl|curl|docker|npm|python|node|git|ls|cd|cat|echo|rm|cp|mv|chmod|chown|grep|find|sed|awk|tar|zip|unzip|wget|ssh|scp|ping|ifconfig|netstat|ps|top|htop|journalctl|tail|head|less|more|nano|vi|vim|make|gcc|gcc|go|java|ruby|perl|php|mysql|psql|mongod|redis|nginx|apache|supervisord|systemd|service|journalctl|journalctl|dmesg|uname|kernel|kernel|grub|boot|reboot|shutdown|sleep|wait|time|date|cal|history|alias|env|set|unset|export|source|bash|zsh|sh|fish|ksh|tcsh|csh)(\s|$)/i.test(
+          line.trim(),
+        ) ||
+        /[|;&<>]{1,}/.test(line) ||
+        line.trim().startsWith('./') ||
+        line.trim().startsWith('/') ||
+        /\$\s*\w+/.test(line); // Variable assignment or usage
+
+      if (isCommand && line.trim().length > 0) {
+        // Start a code block
+        result.push('```bash');
+        result.push(line);
+
+        // Continue adding lines that are part of the same command block
+        i++;
+        while (
+          i < lines.length &&
+          lines[i].trim().length > 0 &&
+          !lines[i].match(/^#{1,6}\s/) && // Not a heading
+          !lines[i].match(/^\*\*\w+/) // Not bold text like **Reset**
+        ) {
+          const nextLine = lines[i];
+          // Check if next line is also a command or output
+          if (
+            /^(sudo|apt|systemctl|curl|docker|npm|python|node|git|ls|cd|cat|echo|rm|cp|mv|chmod|chown|grep|find|sed|awk|tar|zip|unzip|wget|ssh|scp|ping|ifconfig|netstat|ps|top|htop|journalctl|tail|head|less|more|nano|vi|vim|make|gcc|go|java|ruby|perl|php|mysql|psql|mongod|redis|nginx|apache|supervisord|systemd|service|journalctl|dmesg|uname)(\s|$)/i.test(
+              nextLine.trim(),
+            ) ||
+            /^(root@|[a-z]+@|\$|\#|>>>)/.test(nextLine.trim()) || // Shell prompt
+            /^(total|\s+d|drwx)/.test(nextLine) || // ls output
+            /^(Server|HTTP|Status|\[|{)/.test(nextLine.trim()) // Output indicators
+          ) {
+            result.push(nextLine);
+            i++;
+          } else {
+            break;
+          }
+        }
+        result.push('```');
+        result.push('');
+      } else {
+        result.push(line);
+        i++;
+      }
+    }
+
+    return result.join('\n');
   }
 
   availableChats = [
