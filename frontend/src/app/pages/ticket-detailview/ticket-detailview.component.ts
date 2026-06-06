@@ -11,7 +11,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer } from '@angular/platform-browser';
 import { marked } from 'marked';
 import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
-import { ChatDetailViewComponent, ChatMessage } from '../chat-detail-view/chat-detail-view.component';
+import {
+  ChatDetailViewComponent,
+  ChatMessage,
+  ToolCallView,
+} from '../chat-detail-view/chat-detail-view.component';
 import { TicketLogComponent, LogEntry } from '../../components/ticket-log/ticket-log.component';
 import { TicketService } from '../../services/ticket.service';
 import { Ticket } from '../../types/ticket';
@@ -301,44 +305,19 @@ export class TicketDetailviewComponent implements OnInit {
   /**
    * Open an SSE connection for a chat and route every event type the backend
    * emits into the chat's `messages` array. text_delta tokens accumulate into
-   * the current message; every other event starts a fresh message. Each handler
-   * calls refreshView() so the zoneless app actually re-renders.
+   * the current message; tool calls become interactive approval cards. Each
+   * handler calls refreshView() so the zoneless app actually re-renders.
+   *
+   * The backend buffers and replays all prior events on subscribe, so we connect
+   * straight to /api/chats/{id}/stream — no separate history fetch needed.
    */
   private connectStream(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
-    console.log('🔌 connectStream: opening EventSource for', chatId);
-
-    // First, try to load historical messages
-    this.ticketService.getChatMessages(chatId).subscribe({
-      next: (data: any) => {
-        if (data.messages && Array.isArray(data.messages)) {
-          console.log('📜 Loaded', data.messages.length, 'historical messages');
-          data.messages.forEach((msg: any) => {
-            chat.messages.push({
-              id: msg.id || Math.random().toString(),
-              content: msg.content || '',
-            });
-          });
-          this.refreshView();
-        }
-      },
-      error: () => {
-        console.log('ℹ️ No historical messages endpoint (expected)');
-      },
-      complete: () => {
-        // After attempting to load history, open the stream for new events
-        this.openStreamConnection(chat);
-      },
-    });
-  }
-
-  private openStreamConnection(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
-    const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
-    const es = this.ticketService.streamChat(chat.id);
+    const es = this.ticketService.streamChat(chatId);
     chat.eventSource = es;
     let currentMessageId = '';
 
-    console.log('🔌 Stream opened, readyState:', es.readyState);
+    console.log('🔌 connectStream: opening EventSource for', chatId, 'readyState:', es.readyState);
 
     // Trigger immediate render to show "Connecting..."
     this.refreshView();
@@ -360,23 +339,43 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('tool_call_requested', (event: any) => {
       const data = JSON.parse(event.data);
-      console.log('🔧 tool_call_requested:', data.tool_name);
+      console.log('🔧 tool_call_requested:', data.tool_name, data.tool_call_id);
       currentMessageId = '';
+      // Skip duplicates from replayed buffer.
+      if (chat.messages.some((m) => m.toolCall?.id === data.tool_call_id)) {
+        return;
+      }
       chat.messages.push({
-        id: Math.random().toString(),
-        content: `🔧 Approval needed: ${data.tool_name}\n${JSON.stringify(data.args, null, 2)}`,
+        id: data.tool_call_id,
+        content: '',
+        toolCall: {
+          id: data.tool_call_id,
+          name: data.tool_name,
+          command: data.args?.command ?? JSON.stringify(data.args ?? {}),
+          status: data.auto_approved ? 'auto_approved' : 'pending',
+        },
       });
       this.refreshView();
+    });
+
+    es.addEventListener('tool_call_approved', (event: any) => {
+      const data = JSON.parse(event.data);
+      this.updateToolCall(chat, data.tool_call_id, { status: 'approved' });
+    });
+
+    es.addEventListener('tool_call_rejected', (event: any) => {
+      const data = JSON.parse(event.data);
+      this.updateToolCall(chat, data.tool_call_id, { status: 'rejected' });
     });
 
     es.addEventListener('tool_result', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
-      chat.messages.push({
-        id: Math.random().toString(),
-        content: `✓ Command executed\nExit: ${data.exit_code}\nOutput: ${data.stdout || data.stderr || 'No output'}`,
+      this.updateToolCall(chat, data.tool_call_id, {
+        status: 'executed',
+        output: data.stdout || data.stderr || '(no output)',
+        exitCode: data.exit_code,
       });
-      this.refreshView();
     });
 
     es.addEventListener('agent_completed', (event: any) => {
@@ -414,6 +413,40 @@ export class TicketDetailviewComponent implements OnInit {
         content: `⚠️ Stream connection error. Check backend status.`,
       });
       this.refreshView();
+    });
+  }
+
+  /** Merge updated fields into a chat's tool-call message and re-render. */
+  private updateToolCall(
+    chat: { messages: ChatMessage[] },
+    toolCallId: string,
+    patch: Partial<ToolCallView>,
+  ): void {
+    const msg = chat.messages.find((m) => m.toolCall?.id === toolCallId);
+    if (msg?.toolCall) {
+      msg.toolCall = { ...msg.toolCall, ...patch };
+      this.refreshView();
+    }
+  }
+
+  /** Technician clicked ACCEPT/DECLINE on a tool-call card. */
+  onToolCallResolved(event: { toolCallId: string; approved: boolean }): void {
+    const chat = this.activeChat;
+    if (!chat) return;
+    const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
+
+    // Optimistically reflect the decision; the SSE tool_call_approved/rejected
+    // event will confirm it, and tool_result will follow with the output.
+    this.updateToolCall(chat, event.toolCallId, {
+      status: event.approved ? 'approved' : 'rejected',
+    });
+
+    this.ticketService.resolveToolCall(chatId, event.toolCallId, event.approved).subscribe({
+      error: (err) => {
+        console.error('Failed to resolve tool call:', err);
+        // Revert to pending so the technician can retry.
+        this.updateToolCall(chat, event.toolCallId, { status: 'pending' });
+      },
     });
   }
 

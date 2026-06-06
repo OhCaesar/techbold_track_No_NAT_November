@@ -58,7 +58,8 @@ export class TicketService {
     return new EventSource(`http://localhost/api/chats/${id}/stream`);
   }
 
-  getChatMessages(chatId: string): Observable<any> {
-    return this.http.get(`${this.chatsUrl}/${chatId}/messages`);
+  /** Approve or reject a pending tool call awaiting technician sign-off. */
+  resolveToolCall(chatId: string, toolCallId: string, approved: boolean): Observable<any> {
+    return this.http.patch(`${this.chatsUrl}/${chatId}/tool-calls/${toolCallId}`, { approved });
   }
 }

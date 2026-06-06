@@ -14,13 +14,62 @@
   </div>
 
   <div class="chat-content">
-    <p class="stream-output" style="white-space: pre-wrap; word-break: break-word">
-      {{ streamedText }}
-    </p>
+    @if (streamStatus) {
+      <p class="stream-status">{{ streamStatus }}</p>
+    }
 
     @for (message of messages; track message.id) {
       <div class="message-group">
-        <p class="message-text">{{ message.content }}</p>
+        @if (message.content) {
+          <p class="message-text" style="white-space: pre-wrap; word-break: break-word">
+            {{ message.content }}
+          </p>
+        }
+
+        @if (message.toolCall; as tc) {
+          <div class="tool-call-card" [attr.data-status]="tc.status">
+            <div class="tool-call-header">
+              <span class="tool-call-name">🔧 {{ tc.name }}</span>
+              <span class="tool-call-badge status-{{ tc.status }}">
+                @switch (tc.status) {
+                  @case ('pending') {
+                    Approval required
+                  }
+                  @case ('auto_approved') {
+                    Auto-approved (read-only)
+                  }
+                  @case ('approved') {
+                    Approved
+                  }
+                  @case ('rejected') {
+                    Rejected
+                  }
+                  @case ('executed') {
+                    Executed
+                  }
+                }
+              </span>
+            </div>
+
+            <pre class="tool-call-command"><code>{{ tc.command }}</code></pre>
+
+            @if (tc.status === 'pending') {
+              <div class="execution-buttons">
+                <button class="approve-button" (click)="resolveToolCall(tc.id, true)">ACCEPT</button>
+                <button class="decline-button" (click)="resolveToolCall(tc.id, false)">
+                  DECLINE
+                </button>
+              </div>
+            }
+
+            @if (tc.status === 'executed' && tc.output !== undefined) {
+              <div class="tool-call-output">
+                <span class="output-label">exit {{ tc.exitCode }}</span>
+                <pre><code>{{ tc.output }}</code></pre>
+              </div>
+            }
+          </div>
+        }
 
         @if (message.thinkingProcess) {
           <div class="thinking-bubble" (click)="toggleThinking(message.id)">
