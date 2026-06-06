@@ -57,4 +57,8 @@ export class TicketService {
     const id = typeof chatId === 'string' ? chatId : (chatId as any).id;
     return new EventSource(`http://localhost/api/chats/${id}/stream`);
   }
+
+  getChatMessages(chatId: string): Observable<any> {
+    return this.http.get(`${this.chatsUrl}/${chatId}/messages`);
+  }
 }

@@ -268,6 +268,7 @@ export class TicketDetailviewComponent implements OnInit {
   }
 
   onChatSelected(chat: any) {
+    console.log('👆 Chat selected:', chat.id);
     let existingChat = this.openChats.find((c) => c.id === chat.id);
     if (!existingChat) {
       const messages: ChatMessage[] = [];
@@ -285,11 +286,15 @@ export class TicketDetailviewComponent implements OnInit {
 
     // Set active chat first so view switches immediately
     this.activeChat = existingChat;
-    this.refreshView(); // Render the chat detail view instantly
+    this.cdr.markForCheck();
+    this.refreshView(); // Force render the chat detail view instantly
 
     // Then connect to stream (async)
     if (!existingChat.eventSource) {
+      console.log('🔌 Starting stream connection for chat:', chat.id);
       this.connectStream(existingChat);
+    } else {
+      console.log('✅ Stream already connected for chat:', chat.id);
     }
   }
 
@@ -300,11 +305,40 @@ export class TicketDetailviewComponent implements OnInit {
    * calls refreshView() so the zoneless app actually re-renders.
    */
   private connectStream(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
+    const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
+    console.log('🔌 connectStream: opening EventSource for', chatId);
+
+    // First, try to load historical messages
+    this.ticketService.getChatMessages(chatId).subscribe({
+      next: (data: any) => {
+        if (data.messages && Array.isArray(data.messages)) {
+          console.log('📜 Loaded', data.messages.length, 'historical messages');
+          data.messages.forEach((msg: any) => {
+            chat.messages.push({
+              id: msg.id || Math.random().toString(),
+              content: msg.content || '',
+            });
+          });
+          this.refreshView();
+        }
+      },
+      error: () => {
+        console.log('ℹ️ No historical messages endpoint (expected)');
+      },
+      complete: () => {
+        // After attempting to load history, open the stream for new events
+        this.openStreamConnection(chat);
+      },
+    });
+  }
+
+  private openStreamConnection(chat: { id: any; eventSource: EventSource | null; messages: ChatMessage[] }): void {
+    const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
     const es = this.ticketService.streamChat(chat.id);
     chat.eventSource = es;
     let currentMessageId = '';
 
-    console.log('🔌 Stream connecting to chat', chat.id, 'readyState:', es.readyState);
+    console.log('🔌 Stream opened, readyState:', es.readyState);
 
     // Trigger immediate render to show "Connecting..."
     this.refreshView();
@@ -433,9 +467,12 @@ export class TicketDetailviewComponent implements OnInit {
 
         this.openChats.push(newChat);
         this.activeChat = newChat;
+        console.log('✅ Chat created, activeChat set:', newChat.id);
+        this.cdr.markForCheck();
         this.refreshView(); // Switch view to chat detail instantly
 
         // Then connect to stream (async)
+        console.log('🔌 Starting stream connection');
         this.connectStream(newChat);
       },
       error: (err) => {
