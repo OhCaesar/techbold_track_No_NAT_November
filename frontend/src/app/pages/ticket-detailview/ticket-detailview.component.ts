@@ -256,9 +256,10 @@ export class TicketDetailviewComponent implements OnInit {
     let existingChat = this.openChats.find((c) => c.id === chat.id);
     if (!existingChat) {
       const messages: ChatMessage[] = [];
+      const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
       existingChat = {
         id: chat.id,
-        name: chat.name,
+        name: `Chat ${chatId.substring(0, 7)}`,
         date: chat.date,
         active: chat.active,
         content: chat.content || '',
@@ -271,12 +272,34 @@ export class TicketDetailviewComponent implements OnInit {
     // Connect to stream if not already connected
     if (!existingChat.eventSource) {
       existingChat.eventSource = this.ticketService.streamChat(chat.id);
-      existingChat.eventSource.addEventListener('message', (event: MessageEvent) => {
+
+      existingChat.eventSource.addEventListener('text_delta', (event: any) => {
+        const data = JSON.parse(event.data);
+        if (!existingChat.messages.length || existingChat.messages[existingChat.messages.length - 1].content) {
+          existingChat.messages.push({
+            id: Math.random().toString(),
+            content: data.content || '',
+          });
+        } else {
+          existingChat.messages[existingChat.messages.length - 1].content += data.content || '';
+        }
+        this.cdr.markForCheck();
+      });
+
+      existingChat.eventSource.addEventListener('agent_completed', (event: any) => {
         const data = JSON.parse(event.data);
         existingChat.messages.push({
           id: Math.random().toString(),
-          content: data.content || data.message || '',
-          thinkingProcess: data.thinking || '',
+          content: `✓ Agent completed: ${data.summary || 'Task finished'}`,
+        });
+        this.cdr.markForCheck();
+      });
+
+      existingChat.eventSource.addEventListener('agent_failed', (event: any) => {
+        const data = JSON.parse(event.data);
+        existingChat.messages.push({
+          id: Math.random().toString(),
+          content: `✗ Agent failed: ${data.error || 'Unknown error'}`,
         });
         this.cdr.markForCheck();
       });
@@ -328,9 +351,10 @@ export class TicketDetailviewComponent implements OnInit {
     this.ticketService.createChat(ticket.id.toString()).subscribe({
       next: (response) => {
         const messages: ChatMessage[] = [];
+        const chatId = typeof response.id === 'string' ? response.id : response.id.toString();
         const newChat = {
           id: response.id,
-          name: `Chat ${response.id}`,
+          name: `Chat ${chatId.substring(0, 7)}`,
           date: new Date(response.created_at).toLocaleDateString('de-AT'),
           active: true,
           content: '',
@@ -341,14 +365,36 @@ export class TicketDetailviewComponent implements OnInit {
         this.openChats.push(newChat);
         this.activeChat = newChat;
 
-        // Connect to stream
+        // Connect to stream and handle different event types
         newChat.eventSource = this.ticketService.streamChat(response.id);
-        newChat.eventSource.addEventListener('message', (event: MessageEvent) => {
+
+        newChat.eventSource.addEventListener('text_delta', (event: any) => {
+          const data = JSON.parse(event.data);
+          if (!newChat.messages.length || newChat.messages[newChat.messages.length - 1].content) {
+            newChat.messages.push({
+              id: Math.random().toString(),
+              content: data.content || '',
+            });
+          } else {
+            newChat.messages[newChat.messages.length - 1].content += data.content || '';
+          }
+          this.cdr.markForCheck();
+        });
+
+        newChat.eventSource.addEventListener('agent_completed', (event: any) => {
           const data = JSON.parse(event.data);
           newChat.messages.push({
             id: Math.random().toString(),
-            content: data.content || data.message || '',
-            thinkingProcess: data.thinking || '',
+            content: `✓ Agent completed: ${data.summary || 'Task finished'}`,
+          });
+          this.cdr.markForCheck();
+        });
+
+        newChat.eventSource.addEventListener('agent_failed', (event: any) => {
+          const data = JSON.parse(event.data);
+          newChat.messages.push({
+            id: Math.random().toString(),
+            content: `✗ Agent failed: ${data.error || 'Unknown error'}`,
           });
           this.cdr.markForCheck();
         });
