@@ -1,0 +1,21 @@
+<div class="kanban-board">
+  @for (column of columns; track column.label) {
+    <div class="kanban-column">
+      <h2 class="kanban-column__title">{{ column.label }}</h2>
+      <div class="kanban-column__cards">
+        @for (card of column.cards; track card.id) {
+          <div class="kanban-card">
+            @if (card.count) {
+              <span class="kanban-card__count">{{ card.count }}</span>
+            }
+            <span class="kanban-card__company">{{ card.company }}</span>
+            <span class="kanban-card__title">{{ card.title }}</span>
+            <span class="kanban-card__priority"
+                  [class]="'priority-' + card.priority.toLowerCase()">{{ card.priority }}</span>
+            <span class="kanban-card__due-date">{{ card.dueDate }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
