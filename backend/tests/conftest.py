@@ -10,6 +10,14 @@ tests can run without any external services.
 
 from __future__ import annotations
 
+import os
+
+# Set dummy credentials before any app modules are imported, so that
+# module-level agent/client construction doesn't fail in tests.
+os.environ.setdefault("OPENAI_API_KEY", "sk-test-not-used")
+os.environ.setdefault("PHOENIX_API_TOKEN", "test-not-used")
+os.environ.setdefault("PHOENIX_API_BASE_URL", "http://test-not-used")
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock

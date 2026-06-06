@@ -41,3 +41,21 @@ class ChatResponse(BaseModel):
     ticket_id: str
     status: str
     created_at: datetime
+
+
+class ToolCallResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    chat_id: uuid.UUID
+    pydantic_call_id: str
+    tool_name: str
+    args_json: str
+    status: str
+    audit_log_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+
+
+class ApprovalRequest(BaseModel):
+    approved: bool
