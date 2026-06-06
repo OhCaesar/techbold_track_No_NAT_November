@@ -67,7 +67,10 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
                 f"Ticket #{ticket.id}: {ticket.title}\n\n"
                 f"Customer: {ticket.customer_name}\n"
                 f"Priority: {ticket.priority}\n\n"
-                f"{ticket.description}"
+                f"{ticket.description}\n\n"
+                "Please diagnose and resolve this incident now. "
+                "Follow the workflow: call get_ticket_context first, then run diagnostic "
+                "commands, apply a targeted fix, and validate the result."
             )
             await save_message(db, chat_id, "user", prompt)
             await db.commit()
