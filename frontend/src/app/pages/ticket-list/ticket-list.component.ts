@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-switch-toggle.component';
+import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-list-toggle.component';
 
 @Component({
   selector: 'ticket-list',

@@ -5,8 +5,8 @@ import { RouterLink } from '@angular/router';
   selector: 'app-kanban-switch-toggle',
   standalone: true,
   imports: [RouterLink],
-  templateUrl: './kanban-switch-toggle.component.html',
-  styleUrl: './kanban-switch-toggle.component.css',
+  templateUrl: './kanban-list-toggle.component.html',
+  styleUrl: './kanban-list-toggle.component.css',
 })
 export class KanbanSwitchToggleComponent {
   @Input() activeView: 'list' | 'kanban' = 'list';
