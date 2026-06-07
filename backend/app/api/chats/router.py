@@ -94,8 +94,9 @@ async def stream_chat(chat_id: uuid.UUID) -> EventSourceResponse:
                 if event is None:
                     break
 
-                event_type = event.pop("event", "message")
-                yield {"event": event_type, "data": json.dumps(event)}
+                event_type = event.get("event", "message")
+                payload = {k: v for k, v in event.items() if k != "event"}
+                yield {"event": event_type, "data": json.dumps(payload)}
         finally:
             agent_event_bus.unsubscribe(chat_id, q)
 
@@ -263,8 +264,10 @@ async def send_message(
 
     if chat.status == "idle":
         accepted = await send_message_to_agent(chat_id, body.content)
-        if not accepted:
-            raise HTTPException(status_code=409, detail="Agent queue not available")
+        if accepted:
+            return {"accepted": True}
+        # Queue evicted (server restart) — restart the agent with this message.
+        background_tasks.add_task(start_agent, chat_id, chat.ticket_id, body.content)
         return {"accepted": True}
 
     if chat.status in ("stopped", "failed"):

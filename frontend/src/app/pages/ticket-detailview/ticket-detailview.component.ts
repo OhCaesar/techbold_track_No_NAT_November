@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   OnInit,
+  OnDestroy,
   signal,
   WritableSignal,
   SecurityContext,
@@ -56,7 +57,7 @@ interface OpenChat {
   styleUrl: './ticket-detailview.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TicketDetailviewComponent implements OnInit {
+export class TicketDetailviewComponent implements OnInit, OnDestroy {
   // All mutable template state is held in signals. This is a zoneless app, so
   // signal writes are what schedule change detection — including the streamed
   // SSE updates below. No manual markForCheck()/tick() needed.
@@ -86,6 +87,23 @@ export class TicketDetailviewComponent implements OnInit {
         this.loadTicket(ticketId);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    // Close all open EventSources and clear reveal timers so we don't leak
+    // orphaned SSE connections.  Leaked connections keep subscriber queues
+    // alive in the backend event bus, which corrupts events for future
+    // subscribers via the shared-dict mutation in the SSE generator.
+    for (const chat of this.openChats()) {
+      if (chat.eventSource) {
+        chat.eventSource.close();
+        chat.eventSource = null;
+      }
+      if (chat.revealTimer != null) {
+        clearInterval(chat.revealTimer);
+        chat.revealTimer = null;
+      }
+    }
   }
 
   private loadTicket(ticketId: string): void {
@@ -330,7 +348,15 @@ export class TicketDetailviewComponent implements OnInit {
     // Switch the view to this chat (signal write → instant re-render).
     this.activeChat.set(existingChat);
 
-    if (!existingChat.eventSource) {
+    // EventSource.CLOSED === 2: the stream was explicitly closed (e.g. after the
+    // user stopped the agent and the server tore down the SSE).  Treat a closed
+    // stream the same as no stream so we reload history and, if the chat is still
+    // active, reopen the connection.
+    const esClosed = existingChat.eventSource?.readyState === EventSource.CLOSED;
+    if (!existingChat.eventSource || esClosed) {
+      if (esClosed) {
+        existingChat.eventSource = null;
+      }
       console.log('🔌 Starting stream connection for chat:', chat.id);
       this.connectStream(existingChat);
     } else {
@@ -352,21 +378,34 @@ export class TicketDetailviewComponent implements OnInit {
    */
   private connectStream(chat: OpenChat): void {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
-    const isLive = chat.status() === 'running' || chat.status() === 'awaiting_approval';
+    const status = chat.status();
+
+    // SSE is needed for active runs AND idle chats (so the EventSource is ready
+    // before the user sends the next message — avoids a timing race where the
+    // agent starts emitting events before we have subscribed).
+    // Also open for stopped/failed so the EventSource is pre-established
+    // before the user sends a restart message — avoids a timing race where
+    // the agent starts publishing before we have subscribed.
+    const shouldOpenStream =
+      status === 'running' || status === 'awaiting_approval' || status === 'idle' ||
+      status === 'stopped' || status === 'failed';
+
+    // Tool messages from the DB are skipped only when a live stream will re-emit
+    // them as interactive cards.  For idle/stopped/failed we keep them.
+    const liveStreamFollows = status === 'running' || status === 'awaiting_approval';
 
     // Load old messages from /api/chats/{chatId}/messages.
     this.ticketService.getChatMessages(chatId).subscribe({
       next: (messages: any[]) => {
-        console.log('📜 Loaded', messages.length, 'historical messages (live:', isLive, ')');
-        chat.messages.set(this.historyToMessages(messages, isLive));
-        if (isLive) {
+        console.log('📜 Loaded', messages.length, 'historical messages (live:', liveStreamFollows, ')');
+        chat.messages.set(this.historyToMessages(messages, liveStreamFollows));
+        if (shouldOpenStream) {
           this.openStreamConnection(chat);
         }
       },
       error: (err) => {
         console.warn('Failed to load chat history:', err);
-        // Fall back to streaming so we still show whatever the backend has buffered.
-        this.openStreamConnection(chat);
+        if (shouldOpenStream) this.openStreamConnection(chat);
       },
     });
   }
@@ -384,11 +423,17 @@ export class TicketDetailviewComponent implements OnInit {
   private historyToMessages(messages: any[], liveStreamFollows: boolean): ChatMessage[] {
     const out: ChatMessage[] = [];
     for (const m of messages) {
+      if (m.role === 'system') continue;
       if (m.role === 'tool') {
         if (liveStreamFollows) continue;
         out.push(this.toolHistoryMessage(m));
       } else {
-        out.push({ id: m.id || Math.random().toString(), content: m.content || '' });
+        if (!m.content) continue;
+        out.push({
+          id: m.id || Math.random().toString(),
+          content: m.content,
+          isUser: m.role === 'user',
+        });
       }
     }
     return out;
@@ -785,6 +830,14 @@ export class TicketDetailviewComponent implements OnInit {
     const chat = this.activeChat();
     if (!chat) return;
     this.ticketService.abortChat(chat.id.toString()).subscribe({
+      next: () => {
+        // Optimistically reflect the stop so the input is immediately enabled.
+        // The agent_stopped SSE event will confirm it, but setting early prevents
+        // a stuck "running" state if the event is missed (e.g. the chat tab is
+        // closed or the EventSource reconnects before the event is delivered).
+        chat.status.set('stopped');
+        chat.loading.set(false);
+      },
       error: (err) => console.error('Abort failed:', err),
     });
   }
@@ -801,11 +854,14 @@ export class TicketDetailviewComponent implements OnInit {
       if (chat.eventSource) {
         chat.eventSource.close();
       }
-      // Set status to 'running' before opening the stream so the isLive check
-      // inside connectStream doesn't block the SSE connection.
       // Use openStreamConnection directly to avoid reloading history (which
       // would wipe the optimistic user message we're about to add).
       chat.status.set('running');
+      this.openStreamConnection(chat);
+    } else if (chatStatus === 'idle' && !chat.eventSource) {
+      // Page was refreshed: connectStream opened SSE asynchronously but hasn't
+      // completed yet (or the connection dropped).  Open it now before sending
+      // so the EventSource is subscribed before the agent starts emitting events.
       this.openStreamConnection(chat);
     }
 
