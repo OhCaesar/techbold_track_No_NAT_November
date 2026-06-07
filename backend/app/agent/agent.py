@@ -310,6 +310,9 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
             result_msg = await save_message(
                 db, deps.chat_id, "tool",
                 json.dumps({
+                    "tool_call_id": str(tool_call.id),
+                    "command": command,
+                    "reason": reason,
                     "stdout": result.stdout,
                     "stderr": result.stderr,
                     "exit_code": result.exit_code,
