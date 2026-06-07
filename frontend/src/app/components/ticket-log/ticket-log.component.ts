@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { SearchBarComponent } from '../search-bar/search-bar.component';
 
 export interface LogEntry {
   datetime: string;
@@ -14,7 +14,7 @@ export interface LogEntry {
 @Component({
   selector: 'app-ticket-log',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, SearchBarComponent],
   templateUrl: './ticket-log.component.html',
   styleUrl: './ticket-log.component.css',
 })

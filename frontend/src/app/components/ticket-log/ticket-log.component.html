@@ -2,12 +2,10 @@
   <h2 class="log-title">Logs</h2>
 
   <div class="log-search">
-    <input
-      class="log-search__input"
-      type="search"
+    <app-search-bar
       placeholder="Search logs…"
-      [(ngModel)]="searchQuery"
-    />
+      [(value)]="searchQuery"
+    ></app-search-bar>
   </div>
 
   <div class="logs-list">
