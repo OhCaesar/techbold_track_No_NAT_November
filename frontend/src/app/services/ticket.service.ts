@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { Ticket, TicketListResponse, TicketStatus } from '../types/ticket';
 import { ChatListResponse } from '../types/chat';
 import { Customer } from '../types/customer';
+import { AuditLogListResponse } from '../types/audit-log';
 
 @Injectable({
   providedIn: 'root',
@@ -12,6 +13,7 @@ export class TicketService {
   private apiUrl = 'http://localhost/api/tickets';
   private chatsUrl = 'http://localhost/api/chats';
   private customersUrl = 'http://localhost/api/customers';
+  private auditLogsUrl = 'http://localhost/api/audit-logs';
 
   constructor(private http: HttpClient) {}
 
@@ -47,6 +49,11 @@ export class TicketService {
 
   getCustomer(customerId: number): Observable<Customer> {
     return this.http.get<Customer>(`${this.customersUrl}/${customerId}`);
+  }
+
+  getAuditLogs(ticketId: string): Observable<AuditLogListResponse> {
+    const params = new HttpParams().set('ticket_id', ticketId);
+    return this.http.get<AuditLogListResponse>(this.auditLogsUrl, { params });
   }
 
   createChat(ticketId: string): Observable<any> {

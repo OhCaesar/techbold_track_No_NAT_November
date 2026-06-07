@@ -19,6 +19,7 @@ import { TicketLogComponent, LogEntry } from '../../components/ticket-log/ticket
 import { TicketService } from '../../services/ticket.service';
 import { Ticket } from '../../types/ticket';
 import { Customer } from '../../types/customer';
+import { AuditLog } from '../../types/audit-log';
 
 /** A chat opened in a tab, with a live SSE connection and a reactive message log. */
 interface OpenChat {
@@ -208,39 +209,59 @@ export class TicketDetailviewComponent implements OnInit {
     return result.join('\n');
   }
 
-  logs: LogEntry[] = [
-    {
-      datetime: '2024-06-06 14:32:15',
-      content:
-        'ls -la /var/log\ntotal 256\ndrwxr-xr-x 12 root root 4096 Jun  6 14:30 .\ndrwxr-xr-x 13 root root 4096 Jun  5 10:20 ..',
-      riskLevel: 'Low',
-      chatMessage: 'System Check',
-    },
-    {
-      datetime: '2024-06-06 14:28:42',
-      content:
-        'systemctl status nginx\n● nginx.service - A high performance web server and a reverse proxy server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)',
-      riskLevel: 'Medium',
-      chatMessage: 'Service Status Query',
-    },
-    {
-      datetime: '2024-06-06 14:25:08',
-      content:
-        'curl http://localhost:8080/health\n{"status":"error","uptime":"3422s","timestamp":"2024-06-06T14:25:08Z"}',
-      riskLevel: 'High',
-      chatMessage: 'Health Check Failed',
-    },
-    {
-      datetime: '2024-06-06 14:20:33',
-      content:
-        'ps aux | grep java\nroot      1234  45.2 28.3 2847392 456824 ?      Sl   13:45   2:34 java -jar app.jar',
-      riskLevel: 'Low',
-      chatMessage: 'Process Monitor',
-    },
-  ];
+  logs = signal<LogEntry[]>([]);
 
   toggleLogs() {
-    this.showLogs.update((v) => !v);
+    const next = !this.showLogs();
+    this.showLogs.set(next);
+    // Refresh from the backend each time the panel is opened so the technician
+    // sees commands executed since it was last viewed.
+    if (next) {
+      this.loadAuditLogs();
+    }
+  }
+
+  /** Fetch SSH audit logs for the current ticket and map them to LogEntry rows. */
+  private loadAuditLogs(): void {
+    const ticket = this.ticket();
+    if (!ticket) return;
+
+    this.ticketService.getAuditLogs(ticket.id.toString()).subscribe({
+      next: (response) => {
+        // Newest first for display.
+        const logs = [...response.audit_logs]
+          .sort((a, b) => +new Date(b.executed_at) - +new Date(a.executed_at))
+          .map((log) => this.toLogEntry(log));
+        this.logs.set(logs);
+      },
+      error: (err) => {
+        console.error('Error loading audit logs:', err);
+        this.logs.set([]);
+      },
+    });
+  }
+
+  private toLogEntry(log: AuditLog): LogEntry {
+    const output = log.stdout?.trim() || log.stderr?.trim() || '(no output)';
+    return {
+      datetime: new Date(log.executed_at).toLocaleString('de-AT'),
+      content: `${log.command}\n${output}`,
+      riskLevel: this.riskLevelFor(log),
+      chatMessage: this.statusLabelFor(log),
+    };
+  }
+
+  private riskLevelFor(log: AuditLog): LogEntry['riskLevel'] {
+    if (log.was_blocked) return 'High';
+    if (log.exit_code !== 0) return 'Medium';
+    return 'Low';
+  }
+
+  private statusLabelFor(log: AuditLog): string {
+    if (log.was_blocked) return 'Blocked';
+    return log.exit_code === 0
+      ? `Success · ${log.duration_ms} ms`
+      : `Failed (exit ${log.exit_code})`;
   }
 
   onChatSelected(chat: any) {
