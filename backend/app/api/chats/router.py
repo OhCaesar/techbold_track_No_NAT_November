@@ -20,6 +20,8 @@ from ...agent.event_bus import agent_event_bus
 from ...agent.orchestrator import abort_agent, send_message_to_agent, start_agent
 from ...db.models import Chat, ChatMessage, ToolCall
 from ...db.session import get_db
+from ...erp.client import PhoenixClient, get_phoenix_client
+from ...erp.models import TicketStatus
 from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -51,10 +53,15 @@ async def start_chat(
     body: StartChatRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    erp: PhoenixClient = Depends(get_phoenix_client),
 ) -> ChatResponse:
     chat = Chat(ticket_id=body.ticket_id)
     db.add(chat)
     await db.commit()
+    try:
+        await erp.set_ticket_status(int(body.ticket_id), TicketStatus.PENDING)
+    except Exception:
+        pass
     background_tasks.add_task(start_agent, chat.id, chat.ticket_id)
     return ChatResponse.model_validate(chat, from_attributes=True)
 
