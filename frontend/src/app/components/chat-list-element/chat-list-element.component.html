@@ -9,22 +9,12 @@
   } @else if (isWaiting) {
     <div class="status-indicator waiting">
       <span class="status-dot"></span>
-      <p class="status-text">Waiting for input</p>
+      <p class="status-text">Waiting on Approval</p>
     </div>
-  } @else if (isCompleted) {
-    <div class="status-indicator completed">
-      <span class="status-icon">✓</span>
-      <p class="status-text">Completed</p>
-    </div>
-  } @else if (isFailed) {
-    <div class="status-indicator failed">
-      <span class="status-icon">✕</span>
-      <p class="status-text">Failed</p>
-    </div>
-  } @else if (active) {
-    <div class="active-indicator">
-      <span class="active-dot"></span>
-      <p class="active">Active</p>
+  } @else if (isStopped) {
+    <div class="status-indicator stopped">
+      <span class="status-icon">🛑</span>
+      <p class="status-text">Stopped</p>
     </div>
   }
 </div>

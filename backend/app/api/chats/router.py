@@ -22,8 +22,7 @@ from ...db.models import Chat, ChatMessage, ToolCall
 from ...db.session import get_db
 from ...erp.client import PhoenixClient, get_phoenix_client
 from ...erp.models import TicketStatus
-from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
-from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, ChatRunStateResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
+from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse, ChatStatusResponse
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -104,51 +103,33 @@ async def stream_chat(chat_id: uuid.UUID) -> EventSourceResponse:
 
 
 @router.get(
-    "/{chat_id}/running",
-    response_model=ChatRunStateResponse,
-    summary="Whether a chat's agent is currently running",
-    description=(
-        "Reports the live run-state of a chat: 'running' (agent actively working), "
-        "'waiting_for_input' (paused — a command awaits technician approval, or the agent "
-        "is idle and not finished), 'completed', or 'failed'."
-    ),
+    "/{chat_id}/status",
+    response_model=ChatStatusResponse,
+    summary="Get the current UI status of a chat",
 )
-async def chat_run_state(
+async def chat_status(
     chat_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-) -> ChatRunStateResponse:
+) -> ChatStatusResponse:
     chat = await db.get(Chat, chat_id)
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    pending_count = await db.execute(
-        select(func.count())
-        .select_from(ToolCall)
-        .where(ToolCall.chat_id == chat_id, ToolCall.status == "pending")
-    )
-    has_pending = (pending_count.scalar() or 0) > 0
     live = is_agent_running(chat_id)
+    status_str = chat.status
 
-    if chat.status in ("completed", "failed"):
-        state = chat.status
-        running = False
-    elif has_pending:
-        # A command is waiting for the technician to approve/reject it.
-        state = "waiting_for_input"
-        running = False
-    elif live:
-        state = "running"
-        running = True
+    if status_str == "running" and live:
+        ret_status = "running"
+    elif status_str == "waiting_on_approval":
+        ret_status = "waiting_on_approval"
+    elif status_str == "stopped":
+        ret_status = "stopped"
     else:
-        # Not finished, but no live task and nothing pending → treat as waiting.
-        state = "waiting_for_input"
-        running = False
+        ret_status = None
 
-    return ChatRunStateResponse(
+    return ChatStatusResponse(
         chat_id=chat_id,
-        running=running,
-        waiting_for_input=state == "waiting_for_input",
-        state=state,
+        status=ret_status,
     )
 
 
@@ -238,7 +219,7 @@ async def abort_chat(
     chat = await db.get(Chat, chat_id)
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
-    if chat.status not in ("running", "awaiting_approval", "idle"):
+    if chat.status not in ("running", "waiting_on_approval", "idle"):
         raise HTTPException(
             status_code=409,
             detail=f"Cannot stop chat with status '{chat.status}'",

@@ -254,7 +254,27 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
         if auto_approved:
             approved = True
         else:
+            async with AsyncSessionLocal() as db:
+                from ..db.models import Chat
+                chat = await db.get(Chat, deps.chat_id)
+                if chat:
+                    chat.status = "waiting_on_approval"
+                    await db.commit()
+            await agent_event_bus.publish(deps.chat_id, {
+                "event": "status_change",
+                "status": "waiting_on_approval",
+            })
             approved = await approval_gate.request_approval(tool_call.id, deps.chat_id)
+            async with AsyncSessionLocal() as db:
+                from ..db.models import Chat
+                chat = await db.get(Chat, deps.chat_id)
+                if chat:
+                    chat.status = "running"
+                    await db.commit()
+            await agent_event_bus.publish(deps.chat_id, {
+                "event": "status_change",
+                "status": "running",
+            })
 
         if not approved:
             async with AsyncSessionLocal() as db:

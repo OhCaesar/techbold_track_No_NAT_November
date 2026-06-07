@@ -15,7 +15,7 @@ class Chat(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ticket_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
-    # status values: "running" | "awaiting_approval" | "completed" | "failed"
+    # status values: "running" | "waiting_on_approval" | "idle" | "stopped"
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -12,7 +12,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { forkJoin, of, Observable } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { marked } from 'marked';
-import { ChatRunState } from '../../types/chat';
+import { ChatStatusResponse } from '../../types/chat';
 import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
 import {
   ChatDetailViewComponent,
@@ -130,7 +130,7 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
     });
   }
 
-  private mapChatListItem(chat: any, runState?: ChatRunState) {
+  private mapChatListItem(chat: any, runState?: ChatStatusResponse) {
     const chatId = chat.id.toString();
     return {
       id: chatId,
@@ -139,18 +139,17 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
       active: true,
       content: '',
       status: chat.status,
-      // Live run-state from the backend (running / waiting_for_input / completed / failed).
-      state: runState?.state ?? chat.status,
-      running: runState?.running ?? false,
+      // Live status from backend (running / waiting_on_approval / stopped / null)
+      state: runState?.status ?? chat.status,
     };
   }
 
-  /** Fetch the live run-state for each chat and build the list items. */
+  /** Fetch the live status for each chat and build the list items. */
   private buildChatItems(chats: any[]): Observable<any[]> {
     if (chats.length === 0) return of([]);
     return forkJoin(
       chats.map((chat) =>
-        this.ticketService.getChatRunState(chat.id.toString()).pipe(
+        this.ticketService.getChatStatus(chat.id.toString()).pipe(
           map((runState) => this.mapChatListItem(chat, runState)),
           catchError(() => of(this.mapChatListItem(chat))),
         ),
@@ -387,12 +386,12 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
     // before the user sends a restart message — avoids a timing race where
     // the agent starts publishing before we have subscribed.
     const shouldOpenStream =
-      status === 'running' || status === 'awaiting_approval' || status === 'idle' ||
+      status === 'running' || status === 'waiting_on_approval' || status === 'idle' ||
       status === 'stopped' || status === 'failed';
 
     // Tool messages from the DB are skipped only when a live stream will re-emit
     // them as interactive cards.  For idle/stopped/failed we keep them.
-    const liveStreamFollows = status === 'running' || status === 'awaiting_approval';
+    const liveStreamFollows = status === 'running' || status === 'waiting_on_approval';
 
     // Load old messages from /api/chats/{chatId}/messages.
     this.ticketService.getChatMessages(chatId).subscribe({
@@ -629,6 +628,17 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
       });
     });
 
+    es.addEventListener('status_change', (event: any) => {
+      const data = JSON.parse(event.data);
+      console.log('🔄 status_change:', data.status);
+      chat.status.set(data.status);
+      if (data.status === 'running') {
+        this.tickLoading(chat);
+      } else {
+        chat.loading.set(false);
+      }
+    });
+
     es.addEventListener('tool_call_approved', (event: any) => {
       const data = JSON.parse(event.data);
       // Technician approved → the agent resumes working.
@@ -691,7 +701,7 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
       const data = JSON.parse(event.data);
       endBubble();
       chat.loading.set(false);
-      chat.status.set('failed');
+      chat.status.set('stopped'); // Unified stopped status
       chat.messages.update((msgs) => [
         ...msgs,
         {
