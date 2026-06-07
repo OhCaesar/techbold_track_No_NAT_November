@@ -31,6 +31,8 @@ interface OpenChat {
   eventSource: EventSource | null;
   /** Signal so SSE pushes re-render the chat view automatically (zoneless app). */
   messages: WritableSignal<ChatMessage[]>;
+  /** Reflects the backend chat status; drives enabled/disabled state of controls. */
+  status: WritableSignal<string>;
 }
 
 @Component({
@@ -112,6 +114,7 @@ export class TicketDetailviewComponent implements OnInit {
               date: new Date(chat.created_at).toLocaleDateString('de-AT'),
               active: true,
               content: '',
+              status: chat.status,
             };
           }),
         );
@@ -276,6 +279,7 @@ export class TicketDetailviewComponent implements OnInit {
         content: chat.content || '',
         eventSource: null,
         messages: signal<ChatMessage[]>([]),
+        status: signal<string>(chat.status || 'running'),
       };
       const created = existingChat;
       this.openChats.update((chats) => [...chats, created]);
@@ -375,8 +379,24 @@ export class TicketDetailviewComponent implements OnInit {
         ...msgs,
         {
           id: Math.random().toString(),
-          content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
+          content: `✅ Turn completed: ${data.summary || 'Task finished'}`,
         },
+      ]);
+      chat.status.set('idle');
+      // Stream stays open — agent_idle follows and more turns may come
+    });
+
+    es.addEventListener('agent_idle', () => {
+      currentMessageId = '';
+      chat.status.set('idle');
+    });
+
+    es.addEventListener('agent_stopped', () => {
+      currentMessageId = '';
+      chat.status.set('stopped');
+      chat.messages.update((msgs) => [
+        ...msgs,
+        { id: Math.random().toString(), content: '🛑 Agent stopped by technician.' },
       ]);
       es.close();
     });
@@ -384,6 +404,7 @@ export class TicketDetailviewComponent implements OnInit {
     es.addEventListener('agent_failed', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
+      chat.status.set('failed');
       chat.messages.update((msgs) => [
         ...msgs,
         {
@@ -477,6 +498,7 @@ export class TicketDetailviewComponent implements OnInit {
           content: '',
           eventSource: null,
           messages: signal<ChatMessage[]>([]),
+          status: signal<string>('running'),
         };
 
         this.openChats.update((chats) => [...chats, newChat]);
@@ -489,6 +511,26 @@ export class TicketDetailviewComponent implements OnInit {
       error: (err) => {
         console.error('Error creating chat:', err);
       },
+    });
+  }
+
+  onStopClicked(): void {
+    const chat = this.activeChat();
+    if (!chat) return;
+    this.ticketService.abortChat(chat.id.toString()).subscribe({
+      error: (err) => console.error('Abort failed:', err),
+    });
+  }
+
+  onMessageSent(content: string): void {
+    const chat = this.activeChat();
+    if (!chat) return;
+    chat.messages.update((msgs) => [
+      ...msgs,
+      { id: Math.random().toString(), content: `You: ${content}`, isUser: true },
+    ]);
+    this.ticketService.sendMessage(chat.id.toString(), content).subscribe({
+      error: (err) => console.error('Send message failed:', err),
     });
   }
 

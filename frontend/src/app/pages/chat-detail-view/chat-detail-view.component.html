@@ -21,7 +21,11 @@
     @for (message of messages; track message.id) {
       <div class="message-group">
         @if (message.content) {
-          <p class="message-text" style="white-space: pre-wrap; word-break: break-word">
+          <p
+            class="message-text"
+            [class.user-message]="message.isUser"
+            style="white-space: pre-wrap; word-break: break-word"
+          >
             {{ message.content }}
           </p>
         }
@@ -163,8 +167,14 @@
           <path d="M9 9L16.5 16.5" stroke="#949494" stroke-width="2" />
         </svg>
       </span>
-      <input type="text" placeholder="Speak to me ..." />
-      <button class="stop-button">STOP</button>
+      <input
+        type="text"
+        placeholder="Send a message..."
+        [disabled]="!canSendMessage"
+        #messageInput
+        (keydown.enter)="onSendMessage(messageInput.value); messageInput.value = ''"
+      />
+      <button class="stop-button" [disabled]="!canStop" (click)="onStop()">STOP</button>
     </div>
   </div>
 </div>
