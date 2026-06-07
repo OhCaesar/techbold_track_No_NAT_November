@@ -272,6 +272,8 @@ async def _generate_activity(
     """Use a structured LLM call to extract ActivityCreate fields from the run narrative."""
     from openai import AsyncOpenAI
 
+    logger.info("Narrative was: %s", narrative)
+
     settings = get_settings()
 
     result = await db.execute(
@@ -293,26 +295,29 @@ async def _generate_activity(
 
     extraction_prompt = (
         "You are extracting structured fields for a service-desk activity report.\n\n"
-        "TROUBLESHOOTING NARRATIVE:\n"
-        f"{narrative[:4000]}\n\n"
-        "COMMANDS AND THEIR OUTPUT:\n"
-        f"{commands_text[:2000]}\n\n"
-        "Return a JSON object with exactly these keys:\n"
-        "  summary          – one sentence: what was restored/fixed\n"
-        "  description      – detailed description of what was restored/fixed\n"
+        "Return a JSON object with EXACTLY these keys. ALL KEYS NEED TO BE INCLUDED:\n"
+        "  summary          – EXACTLY ONE sentence: what was restored/fixed\n"
+        "  description      – detailed description of what was restored/fixed. Format this in markdown.\n"
         "  root_cause       – the technical root cause (not the symptom)\n"
-        "  actions_taken    – ordered prose: diagnosis steps then fix steps\n"
-        "  commands_summary – ALL commands used, no output, no secrets. ALL commands must be present here.\n"
-        "  validation_result – concrete proof the customer benefit is restored. This is mostly done by executing the validation scripts.\n"
+        "  actions_taken    – ordered prose: diagnosis steps then fix steps. Format using markdown\n"
+        "  commands_summary – ALL commands used, no output, no secrets. ALL commands must be present here. Separate them with newlines.\n"
+        "  validation_result – concrete proof the customer benefit is restored. This is mostly done by executing the validation scripts.Format using markdown\n"
+        "Use this info to build the response:\n"
+        "TROUBLESHOOTING NARRATIVE:\n"
+        f"{narrative}\n\n"
+        "COMMANDS AND THEIR OUTPUT:\n"
+        f"{commands_text}\n\n"
     )
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.azure_openai_endpoint or None,
+    )
     try:
         response = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": extraction_prompt}],
             response_format={"type": "json_object"},
-            max_tokens=1024,
             timeout=30,
         )
         data: dict = json.loads(response.choices[0].message.content or "{}")
@@ -320,14 +325,15 @@ async def _generate_activity(
         logger.warning("Activity extraction LLM call failed: %s", exc)
         data = {}
 
+    logger.info("LLM response: %s", data)
     return ActivityCreate(
         ticket_id=ticket_id,
         start_datetime=start_time,
         end_datetime=end_time,
-        description=data.get("description") or (narrative[:1000] if narrative else ""),
-        summary=data.get("summary") or (narrative[:200] if narrative else "Incident resolved."),
+        description=data.get("description") or (narrative if narrative else ""),
+        summary=data.get("summary") or (narrative if narrative else "Incident resolved."),
         root_cause=data.get("root_cause") or "See narrative.",
-        actions_taken=data.get("actions_taken") or narrative[:1000],
+        actions_taken=data.get("actions_taken") or narrative,
         commands_summary=data.get("commands_summary") or commands_text[:500],
         validation_result=data.get("validation_result") or "Validated by technician.",
     )
