@@ -53,9 +53,10 @@ Docker Compose is the recommended way to run the entire stack (Frontend, Backend
    cp .env.example .env
    ```
 2. Edit `.env` and fill in:
-   - `PHOENIX_API_BASE_URL` & `PHOENIX_API_TOKEN` (ERP credentials)
-   - `POSTGRES_PASSWORD` (database password)
+   - `PHOENIX_API_BASE_URL` (ERP URL)
+   - `PHOENIX_API_TOKEN` (ERP credentials)
    - `OPENAI_API_KEY` (LLM access)
+   - `AZURE_OPENAI_ENDPOINT` (LLM endpoint)
 3. Copy your SSH key file into the `keys/` directory:
    ```bash
    cp /path/to/your-key.pem keys/your-key.pem
