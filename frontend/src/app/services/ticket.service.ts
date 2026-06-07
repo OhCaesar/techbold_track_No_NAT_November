@@ -69,4 +69,9 @@ export class TicketService {
   resolveToolCall(chatId: string, toolCallId: string, approved: boolean): Observable<any> {
     return this.http.patch(`${this.chatsUrl}/${chatId}/tool-calls/${toolCallId}`, { approved });
   }
+
+  /** Fetch all persisted messages for a chat (oldest first by sequence). */
+  getChatMessages(chatId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.chatsUrl}/${chatId}/messages`);
+  }
 }

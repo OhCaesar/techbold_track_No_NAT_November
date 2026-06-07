@@ -28,9 +28,19 @@ interface OpenChat {
   date?: string;
   active?: boolean;
   content?: string;
+  /** Backend chat status: "running" | "awaiting_approval" | "completed" | "failed". */
+  status?: string;
   eventSource: EventSource | null;
   /** Signal so SSE pushes re-render the chat view automatically (zoneless app). */
   messages: WritableSignal<ChatMessage[]>;
+  /** True while the agent is actively streaming (drives the bottom loading text). */
+  loading: WritableSignal<boolean>;
+  /** Rotating "working…" text shown at the bottom while streaming. */
+  loadingText: WritableSignal<string>;
+  /** True once the agent has reported completion. */
+  completed: WritableSignal<boolean>;
+  /** Internal counter to rotate the loading text on each streamed event. */
+  loadingTick: number;
 }
 
 @Component({
@@ -97,30 +107,44 @@ export class TicketDetailviewComponent implements OnInit {
     });
   }
 
+  private mapChatListItem(chat: any) {
+    const chatId = chat.id.toString();
+    return {
+      id: chatId,
+      name: `Chat ${chatId.substring(0, 7)}`,
+      date: new Date(chat.created_at).toLocaleDateString('de-AT'),
+      active: true,
+      content: '',
+      status: chat.status,
+    };
+  }
+
   private loadChats(ticketId: string): void {
     const ticket = this.ticket();
     if (!ticket) return;
 
     this.ticketService.getChats(ticketId).subscribe({
       next: (response) => {
-        this.availableChats.set(
-          response.chats.map((chat) => {
-            const chatId = chat.id.toString();
-            return {
-              id: chatId,
-              name: `Chat ${chatId.substring(0, 7)}`,
-              date: new Date(chat.created_at).toLocaleDateString('de-AT'),
-              active: true,
-              content: '',
-            };
-          }),
-        );
+        this.availableChats.set(response.chats.map((chat) => this.mapChatListItem(chat)));
         this.loadCustomer(ticket.customer_id);
       },
       error: (err) => {
         console.error('Error loading chats:', err);
         this.isLoading.set(false);
       },
+    });
+  }
+
+  /** Re-fetch the chat list (used when returning to the selection view). */
+  private refreshChatList(): void {
+    const ticket = this.ticket();
+    if (!ticket) return;
+
+    this.ticketService.getChats(ticket.id.toString()).subscribe({
+      next: (response) => {
+        this.availableChats.set(response.chats.map((chat) => this.mapChatListItem(chat)));
+      },
+      error: (err) => console.error('Error refreshing chat list:', err),
     });
   }
 
@@ -274,8 +298,13 @@ export class TicketDetailviewComponent implements OnInit {
         date: chat.date,
         active: chat.active,
         content: chat.content || '',
+        status: chat.status,
         eventSource: null,
         messages: signal<ChatMessage[]>([]),
+        loading: signal(false),
+        loadingText: signal(''),
+        completed: signal(chat.status === 'completed'),
+        loadingTick: 0,
       };
       const created = existingChat;
       this.openChats.update((chats) => [...chats, created]);
@@ -293,25 +322,133 @@ export class TicketDetailviewComponent implements OnInit {
   }
 
   /**
-   * Open an SSE connection for a chat and route every event type the backend
-   * emits into the chat's `messages` signal. text_delta tokens accumulate into
-   * the current message; tool calls become interactive approval cards. Every
-   * handler writes the signal, so the zoneless app re-renders automatically.
+   * Load persisted history for a chat, then — only if the chat is still active —
+   * open the SSE stream to append live events.
    *
-   * The backend buffers and replays all prior events on subscribe, so we connect
-   * straight to /api/chats/{id}/stream — no separate history fetch needed.
+   * A "completed"/"failed" chat is fully captured in its persisted messages, so
+   * we render those and do NOT open the stream (the backend would replay its
+   * buffered events and duplicate the conversation). A "running" chat hasn't had
+   * its assistant narrative persisted yet, so we render the prompt from history
+   * and let the stream deliver the live tokens and tool cards. For live chats we
+   * skip persisted "tool" rows because the stream re-emits them as rich,
+   * interactive tool-call cards.
    */
   private connectStream(chat: OpenChat): void {
+    const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
+    const isLive = chat.status === 'running' || chat.status === 'awaiting_approval';
+
+    // Load old messages from /api/chats/{chatId}/messages.
+    this.ticketService.getChatMessages(chatId).subscribe({
+      next: (messages: any[]) => {
+        console.log('📜 Loaded', messages.length, 'historical messages (live:', isLive, ')');
+        chat.messages.set(this.historyToMessages(messages, isLive));
+        if (isLive) {
+          this.openStreamConnection(chat);
+        }
+      },
+      error: (err) => {
+        console.warn('Failed to load chat history:', err);
+        // Fall back to streaming so we still show whatever the backend has buffered.
+        this.openStreamConnection(chat);
+      },
+    });
+  }
+
+  /**
+   * Convert persisted messages from /api/chats/{id}/messages into frontend
+   * ChatMessage rows, rendered the SAME way the live stream renders them:
+   * user/assistant become text bubbles and each "tool" message becomes an
+   * interactive-style tool card (the persisted JSON carries command, output and
+   * exit_code).
+   *
+   * When `liveStreamFollows` is true the SSE stream re-emits tool cards, so we
+   * drop persisted tool rows here to avoid duplicates.
+   */
+  private historyToMessages(messages: any[], liveStreamFollows: boolean): ChatMessage[] {
+    const out: ChatMessage[] = [];
+    for (const m of messages) {
+      if (m.role === 'tool') {
+        if (liveStreamFollows) continue;
+        out.push(this.toolHistoryMessage(m));
+      } else {
+        out.push({ id: m.id || Math.random().toString(), content: m.content || '' });
+      }
+    }
+    return out;
+  }
+
+  /** Build a tool-call card ChatMessage from a persisted "tool" result message. */
+  private toolHistoryMessage(message: any): ChatMessage {
+    let command = '';
+    let output = message.content || '(no output)';
+    let exitCode: number | undefined;
+    let toolCallId = '';
+    let reason = '';
+    try {
+      const parsed = JSON.parse(message.content);
+      command = parsed.command ?? '';
+      output = parsed.stdout?.trim() || parsed.stderr?.trim() || '(no output)';
+      exitCode = parsed.exit_code;
+      toolCallId = parsed.tool_call_id ?? '';
+      reason = parsed.reason ?? '';
+    } catch {
+      // Leave raw content as output if it isn't JSON.
+    }
+
+    const id = toolCallId || message.id || Math.random().toString();
+    return {
+      id,
+      content: '',
+      toolCall: {
+        id,
+        name: 'run_ssh_command',
+        command,
+        status: 'executed',
+        output,
+        exitCode,
+        reason,
+        thinking: reason,
+      },
+    };
+  }
+
+  /** Rotating phrases for the "agent is working" indicator at the bottom of the chat. */
+  private readonly loadingPhrases = [
+    '🤖 Thinking…',
+    '🔍 Diagnosing…',
+    '⚙️ Working on it…',
+    '📡 Gathering data…',
+    '🧠 Reasoning…',
+    '🔧 Preparing the next step…',
+    '📋 Reviewing output…',
+  ];
+
+  /** Advance the loading indicator one step (a new phrase) and ensure it is shown. */
+  private tickLoading(chat: OpenChat): void {
+    const idx = chat.loadingTick++ % this.loadingPhrases.length;
+    chat.loadingText.set(this.loadingPhrases[idx]);
+    chat.loading.set(true);
+  }
+
+  private openStreamConnection(chat: OpenChat): void {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
     const es = this.ticketService.streamChat(chatId);
     chat.eventSource = es;
     let currentMessageId = '';
 
-    console.log('🔌 connectStream: opening EventSource for', chatId, 'readyState:', es.readyState);
+    console.log(
+      '🔌 openStreamConnection: opening EventSource for',
+      chatId,
+      'readyState:',
+      es.readyState,
+    );
+
+    this.tickLoading(chat);
 
     es.addEventListener('text_delta', (event: any) => {
       const content = JSON.parse(event.data).content || '';
       console.log('📝 text_delta:', content.substring(0, 50));
+      this.tickLoading(chat);
       if (!currentMessageId) {
         const id = Math.random().toString();
         currentMessageId = id;
@@ -328,38 +465,62 @@ export class TicketDetailviewComponent implements OnInit {
       const data = JSON.parse(event.data);
       console.log('🔧 tool_call_requested:', data.tool_name, data.tool_call_id);
       currentMessageId = '';
+      // Pending calls need the technician's input → stop the working indicator;
+      // auto-approved (read-only) calls keep working.
+      if (data.auto_approved) {
+        this.tickLoading(chat);
+      } else {
+        chat.loading.set(false);
+      }
       // Skip duplicates from the replayed buffer.
       if (chat.messages().some((m) => m.toolCall?.id === data.tool_call_id)) {
         return;
       }
-      chat.messages.update((msgs) => [
-        ...msgs,
-        {
-          id: data.tool_call_id,
-          content: '',
-          toolCall: {
+      chat.messages.update((msgs) => {
+        // Absorb the assistant text streamed right before this call as its
+        // "thought process" — it's the reasoning that led to the interaction.
+        let arr = msgs;
+        let thinking = '';
+        const last = arr[arr.length - 1];
+        if (last && !last.toolCall && last.content?.trim()) {
+          thinking = last.content;
+          arr = arr.slice(0, -1);
+        }
+        return [
+          ...arr,
+          {
             id: data.tool_call_id,
-            name: data.tool_name,
-            command: data.args?.command ?? JSON.stringify(data.args ?? {}),
-            status: data.auto_approved ? 'auto_approved' : 'pending',
+            content: '',
+            toolCall: {
+              id: data.tool_call_id,
+              name: data.tool_name,
+              command: data.args?.command ?? JSON.stringify(data.args ?? {}),
+              status: data.auto_approved ? 'auto_approved' : 'pending',
+              reason: data.args?.reason ?? '',
+              thinking,
+            },
           },
-        },
-      ]);
+        ];
+      });
     });
 
     es.addEventListener('tool_call_approved', (event: any) => {
       const data = JSON.parse(event.data);
+      // Technician approved → the agent resumes working.
+      this.tickLoading(chat);
       this.updateToolCall(chat, data.tool_call_id, { status: 'approved' });
     });
 
     es.addEventListener('tool_call_rejected', (event: any) => {
       const data = JSON.parse(event.data);
+      this.tickLoading(chat);
       this.updateToolCall(chat, data.tool_call_id, { status: 'rejected' });
     });
 
     es.addEventListener('tool_result', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
+      this.tickLoading(chat);
       this.updateToolCall(chat, data.tool_call_id, {
         status: 'executed',
         output: data.stdout || data.stderr || '(no output)',
@@ -371,6 +532,9 @@ export class TicketDetailviewComponent implements OnInit {
       const data = JSON.parse(event.data);
       console.log('✅ agent_completed:', data.summary);
       currentMessageId = '';
+      chat.loading.set(false);
+      chat.completed.set(true);
+      chat.status = 'completed';
       chat.messages.update((msgs) => [
         ...msgs,
         {
@@ -384,6 +548,8 @@ export class TicketDetailviewComponent implements OnInit {
     es.addEventListener('agent_failed', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
+      chat.loading.set(false);
+      chat.status = 'failed';
       chat.messages.update((msgs) => [
         ...msgs,
         {
@@ -400,6 +566,7 @@ export class TicketDetailviewComponent implements OnInit {
         return;
       }
       console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
+      chat.loading.set(false);
       es.close();
       chat.messages.update((msgs) => [
         ...msgs,
@@ -450,12 +617,25 @@ export class TicketDetailviewComponent implements OnInit {
     const index = chats.findIndex((c) => c.id === chatId);
     if (index === -1) return;
 
+    const closed = chats[index];
+    closed.eventSource?.close();
+
     const remaining = chats.filter((c) => c.id !== chatId);
     this.openChats.set(remaining);
 
     if (this.activeChat()?.id === chatId) {
       this.activeChat.set(remaining.length > 0 ? remaining[0] : null);
+      // Returned to the selection view → show a fresh chat list.
+      if (remaining.length === 0) {
+        this.refreshChatList();
+      }
     }
+  }
+
+  /** Back button inside the chat detail view → return to the chat list and refresh it. */
+  onBackToList() {
+    this.activeChat.set(null);
+    this.refreshChatList();
   }
 
   onNewChatAdded() {
@@ -475,8 +655,13 @@ export class TicketDetailviewComponent implements OnInit {
           date: new Date(response.created_at).toLocaleDateString('de-AT'),
           active: true,
           content: '',
+          status: response.status || 'running',
           eventSource: null,
           messages: signal<ChatMessage[]>([]),
+          loading: signal(false),
+          loadingText: signal(''),
+          completed: signal(false),
+          loadingTick: 0,
         };
 
         this.openChats.update((chats) => [...chats, newChat]);
