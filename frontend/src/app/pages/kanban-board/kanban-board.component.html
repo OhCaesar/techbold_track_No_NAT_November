@@ -1,6 +1,44 @@
 <div class="page-wrapper">
   <app-kanban-switch-toggle activeView="kanban"></app-kanban-switch-toggle>
 
+  <div class="search-wrapper">
+    <app-search-bar placeholder="Search tickets…" [(value)]="searchQuery"></app-search-bar>
+  </div>
+
+  <div class="filters-row">
+    <div class="filter-bar">
+      <span class="filter-label">Priority</span>
+      @for (p of priorities; track p) {
+        <button
+          type="button"
+          class="filter-chip"
+          [class.active]="selectedPriority() === p"
+          [attr.data-priority]="p.toLowerCase()"
+          (click)="setPriority(p)"
+        >
+          {{ priorityLabel(p) }}
+          <span class="filter-chip__count">{{ priorityCount(p) }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="filter-bar">
+      <span class="filter-label">Status</span>
+      @for (s of statuses; track s) {
+        <button
+          type="button"
+          class="filter-chip"
+          [class.active]="selectedStatus() === s"
+          [attr.data-status]="s.toLowerCase()"
+          (click)="setStatus(s)"
+        >
+          {{ statusLabel(s) }}
+          <span class="filter-chip__count">{{ statusCount(s) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
   @if (error()) {
     <div class="kanban-error">
       <p>{{ error() }}</p>
@@ -11,9 +49,12 @@
     </div>
   } @else {
     <div class="kanban-board">
-      @for (column of columns(); track column.label) {
+      @for (column of filteredColumns; track column.label) {
         <div class="kanban-column">
-          <h2 class="kanban-column__title">{{ column.label }}</h2>
+          <h2 class="kanban-column__title">
+            <span class="kanban-column__title-text">{{ column.label }}</span>
+            <span class="kanban-column__count-badge">{{ column.cards.length }}</span>
+          </h2>
           <div
             class="kanban-column__cards"
             cdkDropList
@@ -22,20 +63,51 @@
             [cdkDropListConnectedTo]="columnIds"
             (cdkDropListDropped)="drop($event)"
           >
+            @if (column.cards.length === 0) {
+              <div class="kanban-column__empty-placeholder">
+                No tickets
+              </div>
+            }
             @for (card of column.cards; track card.id) {
-              <div class="kanban-card" cdkDrag [routerLink]="['/ticket-detail', card.id]">
+              <div class="kanban-card" cdkDrag [cdkDragData]="card" [routerLink]="['/ticket-detail', card.id]">
                 <div class="kanban-card__drag-placeholder" *cdkDragPlaceholder></div>
                 @if (card.count) {
                   <span class="kanban-card__count">{{ card.count }}</span>
                 }
-                <span class="kanban-card__company">{{ card.company }}</span>
+                <div class="kanban-card__header">
+                  <span class="kanban-card__company">{{ card.company }}</span>
+                  <span
+                    class="kanban-card__priority-badge"
+                    [class]="'priority-' + card.priority.toLowerCase()"
+                  >
+                    {{ card.priority }}
+                  </span>
+                </div>
                 <span class="kanban-card__title">{{ card.title }}</span>
-                <span
-                  class="kanban-card__priority"
-                  [class]="'priority-' + card.priority.toLowerCase()"
-                  >{{ card.priority }}</span
-                >
-                <span class="kanban-card__due-date">{{ card.dueDate }}</span>
+
+                @if (card.tags && card.tags.length > 0) {
+                  <div class="kanban-card__tags">
+                    @for (tag of card.tags; track tag) {
+                      <span class="kanban-card__tag-pill">{{ tag }}</span>
+                    }
+                  </div>
+                }
+
+                <div class="kanban-card__footer">
+                  <span
+                    class="kanban-card__due-date"
+                    [class.overdue]="card.isOverdue"
+                    [class.urgent]="card.isUrgent"
+                  >
+                    @if (card.isOverdue) {
+                      ⚠️ Overdue: {{ card.dueDate }}
+                    } @else if (card.isUrgent) {
+                      ⏳ Due: {{ card.dueDate }}
+                    } @else {
+                      Due: {{ card.dueDate }}
+                    }
+                  </span>
+                </div>
               </div>
             }
           </div>

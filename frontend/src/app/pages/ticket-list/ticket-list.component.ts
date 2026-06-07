@@ -7,8 +7,8 @@ import { SearchBarComponent } from '../../components/search-bar/search-bar.compo
 import { TicketService } from '../../services/ticket.service';
 import { Ticket } from '../../types/ticket';
 
-type PriorityFilter = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW';
-type StatusFilter = 'ALL' | 'OPEN' | 'PENDING' | 'DONE';
+import { FilterService, PriorityFilter, StatusFilter } from '../../services/filter.service';
+
 type SortField = 'name' | 'company' | 'priority' | 'status' | 'dueDate' | 'createdDate' | 'tags';
 type SortDir = 'asc' | 'desc';
 
@@ -42,13 +42,23 @@ export class TicketListComponent implements OnInit {
   items = signal<ListItem[]>([]);
   isLoading = signal(true);
   error = signal<string | null>(null);
-  searchQuery = '';
+
+  get searchQuery(): string {
+    return this.filterService.searchQuery();
+  }
+  set searchQuery(val: string) {
+    this.filterService.searchQuery.set(val);
+  }
 
   readonly priorities: PriorityFilter[] = ['ALL', 'HIGH', 'MEDIUM', 'LOW'];
-  selectedPriority = signal<PriorityFilter>('ALL');
+  get selectedPriority() {
+    return this.filterService.selectedPriority;
+  }
 
   readonly statuses: StatusFilter[] = ['ALL', 'OPEN', 'PENDING', 'DONE'];
-  selectedStatus = signal<StatusFilter>('ALL');
+  get selectedStatus() {
+    return this.filterService.selectedStatus;
+  }
 
   readonly sortFields: { value: SortField; label: string }[] = [
     { value: 'createdDate', label: 'Created date' },
@@ -62,7 +72,10 @@ export class TicketListComponent implements OnInit {
   sortField = signal<SortField>('createdDate');
   sortDir = signal<SortDir>('desc');
 
-  constructor(private ticketService: TicketService) {}
+  constructor(
+    private ticketService: TicketService,
+    public filterService: FilterService,
+  ) {}
 
   ngOnInit(): void {
     this.loadTickets();
@@ -123,7 +136,7 @@ export class TicketListComponent implements OnInit {
   }
 
   setPriority(priority: PriorityFilter): void {
-    this.selectedPriority.set(priority);
+    this.filterService.selectedPriority.set(priority);
   }
 
   priorityLabel(priority: PriorityFilter): string {
@@ -141,7 +154,7 @@ export class TicketListComponent implements OnInit {
   }
 
   setStatus(status: StatusFilter): void {
-    this.selectedStatus.set(status);
+    this.filterService.selectedStatus.set(status);
   }
 
   statusLabel(status: StatusFilter): string {
