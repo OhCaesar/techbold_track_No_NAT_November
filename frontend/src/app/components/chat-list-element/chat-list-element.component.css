@@ -99,3 +99,51 @@
 .status-indicator.failed .status-icon {
   background-color: #dd0000;
 }
+
+.status-indicator.running {
+  color: #2563eb;
+}
+
+.status-indicator.waiting {
+  color: #d97706;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.running .status-dot {
+  background-color: #2563eb;
+  animation: pulse-running 1.4s ease-in-out infinite;
+}
+
+.status-indicator.waiting .status-dot {
+  background-color: #d97706;
+  animation: pulse-waiting 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-running {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes pulse-waiting {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
