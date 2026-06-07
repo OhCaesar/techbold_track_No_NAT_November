@@ -1,4 +1,15 @@
-import { Component, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  ViewChild,
+  ElementRef,
+  AfterViewInit,
+  OnChanges,
+  OnDestroy,
+  SimpleChanges,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExecutionDisplayComponent } from '../../components/execution-display/execution-display.component';
 import { MarkdownPipe } from '../../pipes/markdown.pipe';
@@ -62,7 +73,7 @@ export interface ChatMessage {
   templateUrl: './chat-detail-view.component.html',
   styleUrl: './chat-detail-view.component.css',
 })
-export class ChatDetailViewComponent {
+export class ChatDetailViewComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() openChats: any[] = [];
   @Input() activeChat: any = null;
   @Output() chatSelected = new EventEmitter<any>();
@@ -90,11 +101,60 @@ export class ChatDetailViewComponent {
     return ['idle', 'stopped', 'failed'].includes(this.chatStatus);
   }
 
-  /** Manually scroll the chat to the newest (last) message. */
+  /**
+   * WhatsApp-style auto-follow: stay pinned to the newest message while the user
+   * is at (or near) the bottom; the moment they scroll up to read history we stop
+   * following so we never yank them down, and resume once they return to bottom.
+   *
+   * A MutationObserver watches the chat DOM and re-pins on every content change
+   * (including the word-by-word reveal), which is far more reliable than hooking
+   * into Angular's change-detection lifecycle in a zoneless app.
+   */
+  private stickToBottom = true;
+  private observer?: MutationObserver;
+
+  ngAfterViewInit(): void {
+    const el = this.chatContent?.nativeElement;
+    if (!el) return;
+    this.observer = new MutationObserver(() => {
+      if (this.stickToBottom) this.jumpToBottom(el);
+    });
+    this.observer.observe(el, { childList: true, subtree: true, characterData: true });
+    this.jumpToBottom(el);
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    // Switching to another chat → start pinned to its newest message.
+    if (changes['activeChat']) {
+      this.stickToBottom = true;
+      queueMicrotask(() => {
+        const el = this.chatContent?.nativeElement;
+        if (el) this.jumpToBottom(el);
+      });
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.observer?.disconnect();
+  }
+
+  /** Distance from the bottom decides whether we keep auto-following. */
+  onChatScroll(): void {
+    const el = this.chatContent?.nativeElement;
+    if (!el) return;
+    this.stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
+  /** Manually scroll the chat to the newest (last) message and resume following. */
   scrollToLatest(): void {
     const el = this.chatContent?.nativeElement;
     if (!el) return;
+    this.stickToBottom = true;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }
+
+  private jumpToBottom(el: HTMLElement): void {
+    el.scrollTop = el.scrollHeight;
   }
 
   get messages(): ChatMessage[] {

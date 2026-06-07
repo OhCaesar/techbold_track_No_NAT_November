@@ -10,7 +10,6 @@
   </div>
 
   <div class="chat-header">
-    <button class="back-to-list-button" (click)="goBack()" title="Back to chat list">←</button>
     <h2 class="chat-name">{{ activeChat?.name }}</h2>
     @if (completed) {
       <span class="chat-completed-badge">✓ Completed</span>
@@ -21,7 +20,7 @@
     ↓
   </button>
 
-  <div class="chat-content" #chatContent>
+  <div class="chat-content" #chatContent (scroll)="onChatScroll()">
     @if (streamStatus) {
       <p class="stream-status">{{ streamStatus }}</p>
     }
@@ -178,7 +177,10 @@
     }
 
     @if (loading) {
-      <div class="chat-loading">{{ loadingText }}</div>
+      <div class="chat-loading">
+        <img class="chat-loading-icon" src="cutie.png" alt="" />
+        <span>{{ loadingText }}</span>
+      </div>
     }
 
     @if (completed) {

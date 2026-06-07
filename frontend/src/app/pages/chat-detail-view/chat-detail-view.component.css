@@ -177,6 +177,18 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  animation: message-in 0.35s ease-out both;
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-text {
@@ -610,10 +622,26 @@
 }
 
 .chat-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   font-style: italic;
-  color: #888888;
+  font-weight: 500;
+  color: #c4562f;
+  animation: message-in 0.35s ease-out both;
+}
+
+.chat-loading span {
   animation: chat-loading-pulse 1.4s ease-in-out infinite;
+}
+
+.chat-loading-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  animation: chat-loading-bounce 1s ease-in-out infinite;
 }
 
 @keyframes chat-loading-pulse {
@@ -623,6 +651,16 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes chat-loading-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
   }
 }
 
