@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import uuid
 from dataclasses import dataclass, field
 
@@ -129,52 +128,17 @@ After the acceptance test passes, provide a summary covering:
 """
 
 # ---------------------------------------------------------------------------
-# Read-only command auto-approval (TEMPORARY — for demo/testing)
+# Read-only command auto-approval — loaded from DB (command_rules table)
 # ---------------------------------------------------------------------------
 
-_READONLY_PATTERNS: list[str] = [
-    r"^journalctl\b",
-    r"^systemctl\s+status\b",
-    r"^systemctl\s+is-enabled\b",
-    r"^systemctl\s+is-active\b",
-    r"^systemctl\s+list-unit",
-    r"^df\b",
-    r"^ss\b",
-    r"^top\b",
-    r"^dmesg\b",
-    r"^ps\b",
-    r"^free\b",
-    r"^uptime\b",
-    r"^uname\b",
-    r"^hostname\b",
-    r"^cat\b",
-    r"^ls\b",
-    r"^tail\b",
-    r"^head\b",
-    r"^grep\b",
-    r"^netstat\b",
-    r"^stat\b",
-    r"^find\b",
-    r"^curl\b",
-    r"^namei\b",
-    r"^getent\b",
-    r"^nslookup\b",
-    r"^dig\b",
-    r"^ping\b",
-    r"^whoami\b",
-    r"^id\b",
-    r"^sort\b",
-    r"^wc\b",
-    r"^echo\b",
-]
 
-_READONLY_COMPILED = [re.compile(p) for p in _READONLY_PATTERNS]
+async def _is_readonly_command(command: str) -> bool:
+    """Return True if the command matches a known read-only (whitelisted) pattern."""
+    from .command_rules_cache import load_whitelist
 
-
-def _is_readonly_command(command: str) -> bool:
-    """Return True if the command matches a known read-only diagnostic pattern."""
+    patterns = await load_whitelist()
     normalized = command.strip()
-    return any(p.match(normalized) for p in _READONLY_COMPILED)
+    return any(p.match(normalized) for p in patterns)
 
 
 def _build_agent() -> Agent[TicketContext, str]:
@@ -250,7 +214,18 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
 
     deps = ctx.deps
 
-    # 1. Safety check BEFORE any I/O
+    # 1. Safety check BEFORE any I/O — check DB blacklist + built-in safety guard
+    from .command_rules_cache import load_blacklist
+
+    blacklist_patterns = await load_blacklist()
+    normalized_cmd = command.strip()
+    for pattern in blacklist_patterns:
+        if pattern.search(normalized_cmd):
+            return (
+                f"BLOCKED: Command blocked by safety guard "
+                f"(pattern: {pattern.pattern!r}): {normalized_cmd[:120]}"
+            )
+
     try:
         deps.runner.safety_guard.check(command)
     except SSHCommandBlockedError as exc:
@@ -270,7 +245,7 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
         await db.commit()
 
     # 3. Notify frontend — auto-approve read-only diagnostics, otherwise require technician
-    auto_approved = _is_readonly_command(command)
+    auto_approved = await _is_readonly_command(command)
     await agent_event_bus.publish(deps.chat_id, {
         "event": "tool_call_requested",
         "tool_call_id": str(tool_call.id),

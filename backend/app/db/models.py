@@ -94,3 +94,23 @@ class ToolCall(Base):
         back_populates="tool_call", foreign_keys=[result_message_id]
     )
     audit_log: Mapped[Optional["AuditLog"]] = relationship()
+
+
+class CommandRule(Base):
+    """Persisted whitelist / blacklist rule for SSH command patterns."""
+
+    __tablename__ = "command_rules"
+    __table_args__ = (
+        # Prevent duplicate patterns within the same rule type
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pattern: Mapped[str] = mapped_column(String, nullable=False)
+    rule_type: Mapped[str] = mapped_column(String, nullable=False)
+    # rule_type values: "whitelist" | "blacklist"
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

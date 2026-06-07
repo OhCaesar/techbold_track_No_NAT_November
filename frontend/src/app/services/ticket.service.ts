@@ -47,6 +47,10 @@ export class TicketService {
     return this.http.get<ChatListResponse>(this.chatsUrl, { params });
   }
 
+  getAllChats(): Observable<ChatListResponse> {
+    return this.http.get<ChatListResponse>(this.chatsUrl);
+  }
+
   /** Live run-state of a chat (running / waiting_for_input / completed / failed). */
   getChatRunState(chatId: string): Observable<ChatRunState> {
     return this.http.get<ChatRunState>(`${this.chatsUrl}/${chatId}/running`);
