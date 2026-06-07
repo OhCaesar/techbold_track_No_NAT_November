@@ -23,6 +23,29 @@
   color: #000000;
 }
 
+.log-search {
+  flex-shrink: 0;
+  padding: 0 20px 12px;
+}
+
+.log-search__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #333;
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.log-search__input:focus {
+  border-color: #888;
+  background: #fff;
+}
+
 .logs-list {
   flex: 1;
   display: flex;

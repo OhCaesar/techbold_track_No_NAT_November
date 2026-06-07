@@ -1,8 +1,17 @@
 <div class="log-container">
   <h2 class="log-title">Logs</h2>
 
+  <div class="log-search">
+    <input
+      class="log-search__input"
+      type="search"
+      placeholder="Search logs…"
+      [(ngModel)]="searchQuery"
+    />
+  </div>
+
   <div class="logs-list">
-    @for (log of logs; track $index) {
+    @for (log of filteredLogs; track $index) {
       <div class="log-entry">
         <div class="log-header">
           <div class="log-meta">
