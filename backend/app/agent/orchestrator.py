@@ -57,15 +57,22 @@ async def send_message_to_agent(chat_id: uuid.UUID, content: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
+async def start_agent(
+    chat_id: uuid.UUID,
+    ticket_id: str,
+    restart_message: str | None = None,
+) -> None:
     """
     Thin dispatcher: creates the real asyncio.Task and registers it so it can
     be cancelled via abort_agent(). Awaits the task so Starlette keeps the
     background-task context alive.
+
+    restart_message: if provided, used as the first user prompt instead of
+    building one from ERP data (used when restarting a stopped/failed chat).
     """
     queue: asyncio.Queue[str] = asyncio.Queue()
     _message_queues[chat_id] = queue
-    task = asyncio.create_task(_run_agent_loop(chat_id, ticket_id, queue))
+    task = asyncio.create_task(_run_agent_loop(chat_id, ticket_id, queue, restart_message))
     _agent_tasks[chat_id] = task
     try:
         await task
@@ -85,6 +92,7 @@ async def _run_agent_loop(
     chat_id: uuid.UUID,
     ticket_id: str,
     queue: asyncio.Queue[str],
+    restart_message: str | None = None,
 ) -> None:
     """
     Orchestrates a full troubleshooting session for one ticket.
@@ -136,15 +144,18 @@ async def _run_agent_loop(
                 ctx.chat_id, ctx.ticket_id, ctx.host, ctx.port, ctx.description,
             )
 
-            initial_prompt = (
-                f"Ticket #{ticket.id}: {ticket.title}\n\n"
-                f"Customer: {ticket.customer_name}\n"
-                f"Priority: {ticket.priority}\n\n"
-                f"{ticket.description}\n\n"
-                "Please diagnose and resolve this incident now. "
-                "Follow the workflow: call get_ticket_context first, then run diagnostic "
-                "commands, apply a targeted fix, and validate the result."
-            )
+            if restart_message is None:
+                initial_prompt = (
+                    f"Ticket #{ticket.id}: {ticket.title}\n\n"
+                    f"Customer: {ticket.customer_name}\n"
+                    f"Priority: {ticket.priority}\n\n"
+                    f"{ticket.description}\n\n"
+                    "Please diagnose and resolve this incident now. "
+                    "Follow the workflow: call get_ticket_context first, then run diagnostic "
+                    "commands, apply a targeted fix, and validate the result."
+                )
+            else:
+                initial_prompt = restart_message
             await save_message(db, chat_id, "user", initial_prompt)
             await db.commit()
 

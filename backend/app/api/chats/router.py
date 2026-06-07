@@ -192,22 +192,29 @@ async def abort_chat(
 @router.post(
     "/{chat_id}/messages",
     status_code=202,
-    summary="Send a message to an idle agent",
+    summary="Send a message to an idle agent, or restart a stopped/failed one",
 )
 async def send_message(
     chat_id: uuid.UUID,
     body: SendMessageRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     chat = await db.get(Chat, chat_id)
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
-    if chat.status != "idle":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Agent is not idle (status: '{chat.status}')",
-        )
-    accepted = await send_message_to_agent(chat_id, body.content)
-    if not accepted:
-        raise HTTPException(status_code=409, detail="Agent queue not available")
-    return {"accepted": True}
+
+    if chat.status == "idle":
+        accepted = await send_message_to_agent(chat_id, body.content)
+        if not accepted:
+            raise HTTPException(status_code=409, detail="Agent queue not available")
+        return {"accepted": True}
+
+    if chat.status in ("stopped", "failed"):
+        background_tasks.add_task(start_agent, chat_id, chat.ticket_id, body.content)
+        return {"accepted": True}
+
+    raise HTTPException(
+        status_code=409,
+        detail=f"Agent is not accepting messages (status: '{chat.status}')",
+    )
