@@ -2,7 +2,7 @@ import { HttpClient, HttpParams, HttpErrorResponse } from '@angular/common/http'
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Ticket, TicketListResponse, TicketStatus } from '../types/ticket';
-import { ChatListResponse } from '../types/chat';
+import { ChatListResponse, ChatRunState } from '../types/chat';
 import { Customer } from '../types/customer';
 import { AuditLogListResponse } from '../types/audit-log';
 
@@ -45,6 +45,11 @@ export class TicketService {
   getChats(ticketId: string): Observable<ChatListResponse> {
     const params = new HttpParams().set('ticket_id', ticketId);
     return this.http.get<ChatListResponse>(this.chatsUrl, { params });
+  }
+
+  /** Live run-state of a chat (running / waiting_for_input / completed / failed). */
+  getChatRunState(chatId: string): Observable<ChatRunState> {
+    return this.http.get<ChatRunState>(`${this.chatsUrl}/${chatId}/running`);
   }
 
   getCustomer(customerId: number): Observable<Customer> {
