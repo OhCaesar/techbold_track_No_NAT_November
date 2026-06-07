@@ -1,6 +1,10 @@
 <div class="page-wrapper">
   <app-kanban-switch-toggle activeView="list"></app-kanban-switch-toggle>
 
+  <div class="search-wrapper">
+    <app-search-bar placeholder="Search tickets…" [(value)]="searchQuery"></app-search-bar>
+  </div>
+
   @if (error()) {
     <div class="list-error">
       <p>{{ error() }}</p>
@@ -11,7 +15,7 @@
     </div>
   } @else {
     <div class="chat-list">
-      @for (item of items(); track item.id) {
+      @for (item of filteredItems; track item.id) {
         <div class="chat-item" [routerLink]="['/ticket-detail', item.id]">
           <div class="chat-item__left">
             <span class="chat-item__company">{{ item.company }}</span>

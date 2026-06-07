@@ -270,15 +270,11 @@ export class TicketDetailviewComponent implements OnInit {
     return {
       datetime: new Date(log.executed_at).toLocaleString('de-AT'),
       content: `${log.command}\n${output}`,
-      riskLevel: this.riskLevelFor(log),
+      wasBlocked: log.was_blocked,
+      autoExecuted: log.auto_executed,
+      accepted: log.accepted,
       chatMessage: this.statusLabelFor(log),
     };
-  }
-
-  private riskLevelFor(log: AuditLog): LogEntry['riskLevel'] {
-    if (log.was_blocked) return 'High';
-    if (log.exit_code !== 0) return 'Medium';
-    return 'Low';
   }
 
   private statusLabelFor(log: AuditLog): string {

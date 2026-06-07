@@ -91,7 +91,7 @@
   </div>
 
   <div class="right-panel" [class.collapsed-left]="leftPanelCollapsed()">
-    @if (leftPanelCollapsed() && !showLogs()) {
+    @if (leftPanelCollapsed()) {
       <button class="expand-panel-button" (click)="toggleLeftPanel()" title="Expand panel">
         ← Open
       </button>
