@@ -11,14 +11,22 @@ export class ChatListElementComponent {
   @Input() chatName: string = 'CHAT';
   @Input() chatDate: string = '12.12.1212';
   @Input() active: boolean = true;
-  /** Backend chat status: "running" | "awaiting_approval" | "completed" | "failed". */
-  @Input() status: string = '';
+  /** Live run-state: "running" | "waiting_for_input" | "completed" | "failed". */
+  @Input() state: string = '';
+
+  get isRunning(): boolean {
+    return this.state === 'running';
+  }
+
+  get isWaiting(): boolean {
+    return this.state === 'waiting_for_input';
+  }
 
   get isCompleted(): boolean {
-    return this.status === 'completed';
+    return this.state === 'completed';
   }
 
   get isFailed(): boolean {
-    return this.status === 'failed';
+    return this.state === 'failed';
   }
 }

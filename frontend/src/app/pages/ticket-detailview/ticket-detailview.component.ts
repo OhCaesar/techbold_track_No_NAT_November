@@ -8,7 +8,10 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer } from '@angular/platform-browser';
+import { forkJoin, of, Observable } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { marked } from 'marked';
+import { ChatRunState } from '../../types/chat';
 import { ChatSelectionComponent } from '../../components/chat-selection/chat-selection.component';
 import {
   ChatDetailViewComponent,
@@ -109,7 +112,7 @@ export class TicketDetailviewComponent implements OnInit {
     });
   }
 
-  private mapChatListItem(chat: any) {
+  private mapChatListItem(chat: any, runState?: ChatRunState) {
     const chatId = chat.id.toString();
     return {
       id: chatId,
@@ -118,7 +121,23 @@ export class TicketDetailviewComponent implements OnInit {
       active: true,
       content: '',
       status: chat.status,
+      // Live run-state from the backend (running / waiting_for_input / completed / failed).
+      state: runState?.state ?? chat.status,
+      running: runState?.running ?? false,
     };
+  }
+
+  /** Fetch the live run-state for each chat and build the list items. */
+  private buildChatItems(chats: any[]): Observable<any[]> {
+    if (chats.length === 0) return of([]);
+    return forkJoin(
+      chats.map((chat) =>
+        this.ticketService.getChatRunState(chat.id.toString()).pipe(
+          map((runState) => this.mapChatListItem(chat, runState)),
+          catchError(() => of(this.mapChatListItem(chat))),
+        ),
+      ),
+    );
   }
 
   private loadChats(ticketId: string): void {
@@ -127,7 +146,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     this.ticketService.getChats(ticketId).subscribe({
       next: (response) => {
-        this.availableChats.set(response.chats.map((chat) => this.mapChatListItem(chat)));
+        this.buildChatItems(response.chats).subscribe((items) => this.availableChats.set(items));
         this.loadCustomer(ticket.customer_id);
       },
       error: (err) => {
@@ -144,7 +163,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     this.ticketService.getChats(ticket.id.toString()).subscribe({
       next: (response) => {
-        this.availableChats.set(response.chats.map((chat) => this.mapChatListItem(chat)));
+        this.buildChatItems(response.chats).subscribe((items) => this.availableChats.set(items));
       },
       error: (err) => console.error('Error refreshing chat list:', err),
     });
