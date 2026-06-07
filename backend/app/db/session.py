@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -48,3 +49,9 @@ async def init_db() -> None:
     """Create all tables. Called on startup from lifespan."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS auto_executed BOOLEAN DEFAULT FALSE")
+        )
+        await conn.execute(
+            text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS accepted BOOLEAN DEFAULT TRUE")
+        )

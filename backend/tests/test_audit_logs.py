@@ -27,6 +27,8 @@ def _make_log_row(**overrides):
     obj.exit_code = overrides.get("exit_code", 0)
     obj.duration_ms = overrides.get("duration_ms", 42)
     obj.was_blocked = overrides.get("was_blocked", False)
+    obj.auto_executed = overrides.get("auto_executed", False)
+    obj.accepted = overrides.get("accepted", True)
     obj.executed_at = overrides.get(
         "executed_at", datetime(2026, 6, 6, 12, 0, tzinfo=timezone.utc)
     )
@@ -94,7 +96,7 @@ async def test_list_audit_logs_response_shape(
     expected_keys = {
         "id", "chat_id", "ticket_id", "command",
         "stdout", "stderr", "exit_code", "duration_ms",
-        "was_blocked", "executed_at",
+        "was_blocked", "auto_executed", "accepted", "executed_at",
     }
     assert set(entry.keys()) == expected_keys
 
@@ -118,6 +120,8 @@ async def test_list_audit_logs_field_values(
             exit_code=1,
             duration_ms=99,
             was_blocked=True,
+            auto_executed=True,
+            accepted=False,
         )
     ])
 
@@ -132,6 +136,8 @@ async def test_list_audit_logs_field_values(
     assert entry["exit_code"] == 1
     assert entry["duration_ms"] == 99
     assert entry["was_blocked"] is True
+    assert entry["auto_executed"] is True
+    assert entry["accepted"] is False
 
 
 # ---------------------------------------------------------------------------
