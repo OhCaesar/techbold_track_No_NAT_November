@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Any
 
+import logging
 import httpx
 
 from ..config import get_settings
@@ -23,6 +24,7 @@ from .models import (
     TicketStatus,
 )
 
+logger = logging.getLogger(__name__)
 
 class PhoenixClient:
     def __init__(self, base_url: str, token: str) -> None:
@@ -89,6 +91,7 @@ class PhoenixClient:
         return Customer.model_validate(data)
 
     async def create_activity(self, activity: ActivityCreate) -> Activity:
+        logger.info("🔑 Creating activity: %s", activity)
         data = await self._request(
             "POST",
             "/api/v1/activities/create",
