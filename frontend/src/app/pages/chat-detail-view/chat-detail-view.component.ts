@@ -1,4 +1,12 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  ViewChild,
+  ElementRef,
+  AfterViewChecked,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExecutionDisplayComponent } from '../../components/execution-display/execution-display.component';
 
@@ -56,15 +64,62 @@ export interface ChatMessage {
   templateUrl: './chat-detail-view.component.html',
   styleUrl: './chat-detail-view.component.css',
 })
-export class ChatDetailViewComponent {
+export class ChatDetailViewComponent implements AfterViewChecked {
   @Input() openChats: any[] = [];
   @Input() activeChat: any = null;
   @Output() chatSelected = new EventEmitter<any>();
   @Output() chatClosed = new EventEmitter<number>();
   @Output() newChatAdded = new EventEmitter<void>();
   @Output() toolCallResolved = new EventEmitter<{ toolCallId: string; approved: boolean }>();
+  @Output() back = new EventEmitter<void>();
+
+  @ViewChild('chatContent') private chatContent?: ElementRef<HTMLElement>;
+
+  /**
+   * Auto-follow the newest messages. Only the USER scrolling changes this: it
+   * flips false when they scroll up and true again when they return to the
+   * bottom. Our own programmatic snap-to-bottom is ignored (see onChatScroll).
+   */
+  private stickToBottom = true;
+  /** Set while we programmatically scroll, so that scroll event isn't read as user input. */
+  private programmaticScroll = false;
+  /** Remembers which chat we last auto-scrolled, so switching chats jumps to bottom. */
+  private lastChatId: any = null;
 
   expandedThinking: { [key: string]: boolean } = {};
+
+  ngAfterViewChecked(): void {
+    const el = this.chatContent?.nativeElement;
+    if (!el) return;
+
+    // On switching to a different chat, always jump to the latest messages.
+    const currentId = this.activeChat?.id ?? null;
+    if (currentId !== this.lastChatId) {
+      this.lastChatId = currentId;
+      this.stickToBottom = true;
+    }
+
+    const maxScrollTop = el.scrollHeight - el.clientHeight;
+    if (this.stickToBottom && el.scrollTop < maxScrollTop) {
+      this.programmaticScroll = true;
+      el.scrollTop = maxScrollTop;
+    }
+  }
+
+  /**
+   * Only real user scrolls toggle auto-follow. Scroll events fired by our own
+   * snap-to-bottom are swallowed, so we never fight the user's scrolling.
+   */
+  onChatScroll(): void {
+    if (this.programmaticScroll) {
+      this.programmaticScroll = false;
+      return;
+    }
+    const el = this.chatContent?.nativeElement;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    this.stickToBottom = distanceFromBottom < 60;
+  }
 
   get messages(): ChatMessage[] {
     // activeChat.messages is a signal in the live app (read it to track the
@@ -92,6 +147,10 @@ export class ChatDetailViewComponent {
 
   selectChat(chat: any) {
     this.chatSelected.emit(chat);
+  }
+
+  goBack() {
+    this.back.emit();
   }
 
   closeChat(chatId: number) {
