@@ -386,8 +386,11 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
     // before the user sends a restart message — avoids a timing race where
     // the agent starts publishing before we have subscribed.
     const shouldOpenStream =
-      status === 'running' || status === 'waiting_on_approval' || status === 'idle' ||
-      status === 'stopped' || status === 'failed';
+      status === 'running' ||
+      status === 'waiting_on_approval' ||
+      status === 'idle' ||
+      status === 'stopped' ||
+      status === 'failed';
 
     // Tool messages from the DB are skipped only when a live stream will re-emit
     // them as interactive cards.  For idle/stopped/failed we keep them.
@@ -396,7 +399,13 @@ export class TicketDetailviewComponent implements OnInit, OnDestroy {
     // Load old messages from /api/chats/{chatId}/messages.
     this.ticketService.getChatMessages(chatId).subscribe({
       next: (messages: any[]) => {
-        console.log('📜 Loaded', messages.length, 'historical messages (live:', liveStreamFollows, ')');
+        console.log(
+          '📜 Loaded',
+          messages.length,
+          'historical messages (live:',
+          liveStreamFollows,
+          ')',
+        );
         chat.messages.set(this.historyToMessages(messages, liveStreamFollows));
         if (shouldOpenStream) {
           this.openStreamConnection(chat);

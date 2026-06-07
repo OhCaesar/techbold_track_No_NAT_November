@@ -64,12 +64,15 @@
             (cdkDropListDropped)="drop($event)"
           >
             @if (column.cards.length === 0) {
-              <div class="kanban-column__empty-placeholder">
-                No tickets
-              </div>
+              <div class="kanban-column__empty-placeholder">No tickets</div>
             }
             @for (card of column.cards; track card.id) {
-              <div class="kanban-card" cdkDrag [cdkDragData]="card" [routerLink]="['/ticket-detail', card.id]">
+              <div
+                class="kanban-card"
+                cdkDrag
+                [cdkDragData]="card"
+                [routerLink]="['/ticket-detail', card.id]"
+              >
                 <div class="kanban-card__drag-placeholder" *cdkDragPlaceholder></div>
                 @if (card.count) {
                   <span class="kanban-card__count">{{ card.count }}</span>
