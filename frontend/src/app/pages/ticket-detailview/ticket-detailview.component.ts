@@ -330,7 +330,15 @@ export class TicketDetailviewComponent implements OnInit {
     // Switch the view to this chat (signal write → instant re-render).
     this.activeChat.set(existingChat);
 
-    if (!existingChat.eventSource) {
+    // EventSource.CLOSED === 2: the stream was explicitly closed (e.g. after the
+    // user stopped the agent and the server tore down the SSE).  Treat a closed
+    // stream the same as no stream so we reload history and, if the chat is still
+    // active, reopen the connection.
+    const esClosed = existingChat.eventSource?.readyState === EventSource.CLOSED;
+    if (!existingChat.eventSource || esClosed) {
+      if (esClosed) {
+        existingChat.eventSource = null;
+      }
       console.log('🔌 Starting stream connection for chat:', chat.id);
       this.connectStream(existingChat);
     } else {
@@ -800,6 +808,14 @@ export class TicketDetailviewComponent implements OnInit {
     const chat = this.activeChat();
     if (!chat) return;
     this.ticketService.abortChat(chat.id.toString()).subscribe({
+      next: () => {
+        // Optimistically reflect the stop so the input is immediately enabled.
+        // The agent_stopped SSE event will confirm it, but setting early prevents
+        // a stuck "running" state if the event is missed (e.g. the chat tab is
+        // closed or the EventSource reconnects before the event is delivered).
+        chat.status.set('stopped');
+        chat.loading.set(false);
+      },
       error: (err) => console.error('Abort failed:', err),
     });
   }
