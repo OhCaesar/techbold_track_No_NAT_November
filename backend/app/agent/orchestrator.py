@@ -197,13 +197,15 @@ async def _generate_activity(
         f"{commands_text}\n\n"
     )
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.azure_openai_endpoint or None,
+    )
     try:
         response = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": extraction_prompt}],
             response_format={"type": "json_object"},
-            max_tokens=1024,
             timeout=30,
         )
         data: dict = json.loads(response.choices[0].message.content or "{}")
