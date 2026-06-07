@@ -3,6 +3,10 @@
   flex-direction: column;
 }
 
+.search-wrapper {
+  padding: 24px 24px 0 24px;
+}
+
 .chat-list {
   display: flex;
   flex-direction: column;
