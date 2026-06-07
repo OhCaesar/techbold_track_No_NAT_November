@@ -5,7 +5,9 @@ import { FormsModule } from '@angular/forms';
 export interface LogEntry {
   datetime: string;
   content: string;
-  riskLevel: 'High' | 'Medium' | 'Low';
+  wasBlocked: boolean;
+  autoExecuted: boolean;
+  accepted: boolean;
   chatMessage: string;
 }
 
@@ -28,12 +30,22 @@ export class TicketLogComponent {
       (l) =>
         l.content.toLowerCase().includes(q) ||
         l.chatMessage.toLowerCase().includes(q) ||
-        l.riskLevel.toLowerCase().includes(q) ||
-        l.datetime.toLowerCase().includes(q),
+        l.datetime.toLowerCase().includes(q) ||
+        this.getStatusLabel(l).toLowerCase().includes(q),
     );
   }
 
-  getRiskLevelClass(riskLevel: string): string {
-    return `risk-${riskLevel.toLowerCase()}`;
+  getStatusLabel(log: LogEntry): string {
+    if (log.wasBlocked) return 'Blocked';
+    if (log.autoExecuted) return 'Auto Accepted';
+    if (log.accepted) return 'Accepted';
+    return 'Pending';
+  }
+
+  getStatusClass(log: LogEntry): string {
+    if (log.wasBlocked) return 'status-blocked';
+    if (log.autoExecuted) return 'status-auto';
+    if (log.accepted) return 'status-accepted';
+    return 'status-pending';
   }
 }

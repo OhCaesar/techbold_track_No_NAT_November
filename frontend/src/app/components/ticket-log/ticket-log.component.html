@@ -16,8 +16,8 @@
         <div class="log-header">
           <div class="log-meta">
             <p class="log-datetime">{{ log.datetime }}</p>
-            <span class="risk-badge" [ngClass]="getRiskLevelClass(log.riskLevel)">
-              {{ log.riskLevel }}
+            <span class="status-badge" [ngClass]="getStatusClass(log)">
+              {{ getStatusLabel(log) }}
             </span>
           </div>
           <p class="log-chat-message">{{ log.chatMessage }}</p>

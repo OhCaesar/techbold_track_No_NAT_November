@@ -8,6 +8,8 @@ export interface AuditLog {
   exit_code: number;
   duration_ms: number;
   was_blocked: boolean;
+  auto_executed: boolean;
+  accepted: boolean;
   executed_at: string;
 }
 

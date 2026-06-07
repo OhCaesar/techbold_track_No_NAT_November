@@ -92,7 +92,7 @@
   font-weight: 500;
 }
 
-.risk-badge {
+.status-badge {
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
@@ -102,19 +102,24 @@
   flex-shrink: 0;
 }
 
-.risk-high {
+.status-blocked {
   background-color: #fee2e2;
   color: #991b1b;
 }
 
-.risk-medium {
+.status-auto {
   background-color: #fef3c7;
   color: #92400e;
 }
 
-.risk-low {
-  background-color: #dbeafe;
-  color: #0c2d6b;
+.status-accepted {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-pending {
+  background-color: #f3f4f6;
+  color: #6b7280;
 }
 
 .log-chat-message {
