@@ -58,7 +58,7 @@
         <div class="rules-loading">Loading rules…</div>
       } @else {
         <div class="rules-list">
-          @for (rule of activeRules; track rule.id) {
+          @for (rule of activeRules(); track rule.id) {
             <div class="rule-card">
               <div class="rule-content">
                 <code class="rule-pattern">{{ rule.pattern }}</code>
@@ -76,6 +76,7 @@
                   class="delete-button"
                   (click)="deleteRule(rule)"
                   title="Remove rule"
+                  [disabled]="deletingRuleIds()[rule.id]"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

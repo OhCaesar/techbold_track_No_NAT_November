@@ -1,4 +1,4 @@
-import { Component, signal, output } from '@angular/core';
+import { ChangeDetectorRef, Component, signal, output, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CommandRuleService } from '../../services/command-rule.service';
@@ -27,13 +27,18 @@ export class CommandRulesPanelComponent {
   addError = signal<string | null>(null);
   isAdding = signal(false);
 
-  constructor(private ruleService: CommandRuleService) {
+  deletingRuleIds = signal<Record<string, boolean>>({});
+
+  constructor(
+    private ruleService: CommandRuleService,
+    private cdr: ChangeDetectorRef,
+  ) {
     this.loadRules();
   }
 
-  get activeRules(): CommandRule[] {
-    return this.activeTab() === 'whitelist' ? this.whitelistRules() : this.blacklistRules();
-  }
+  activeRules = computed(() =>
+    this.activeTab() === 'whitelist' ? this.whitelistRules() : this.blacklistRules(),
+  );
 
   setTab(tab: 'whitelist' | 'blacklist') {
     this.activeTab.set(tab);
@@ -50,11 +55,13 @@ export class CommandRulesPanelComponent {
         this.whitelistRules.set(response.rules.filter((r) => r.rule_type === 'whitelist'));
         this.blacklistRules.set(response.rules.filter((r) => r.rule_type === 'blacklist'));
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
       error: (err) => {
         this.error.set('Failed to load command rules');
         console.error('Error loading command rules:', err);
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
@@ -98,10 +105,30 @@ export class CommandRulesPanelComponent {
   }
 
   deleteRule(rule: CommandRule) {
+    if (this.deletingRuleIds()[rule.id]) {
+      return;
+    }
+
+    this.deletingRuleIds.update((ids) => ({ ...ids, [rule.id]: true }));
+    this.cdr.markForCheck();
+
     this.ruleService.deleteRule(rule.id).subscribe({
-      next: () => this.loadRules(),
+      next: () => {
+        this.deletingRuleIds.update((ids) => {
+          const next = { ...ids };
+          delete next[rule.id];
+          return next;
+        });
+        this.loadRules();
+      },
       error: (err) => {
         console.error('Error deleting rule:', err);
+        this.deletingRuleIds.update((ids) => {
+          const next = { ...ids };
+          delete next[rule.id];
+          return next;
+        });
+        this.cdr.markForCheck();
       },
     });
   }

@@ -84,7 +84,7 @@ async def create_command_rule(
         is_default=False,
     )
     db.add(rule)
-    await db.flush()
+    await db.commit()
     await db.refresh(rule)
 
     # Invalidate the in-memory cache so changes take effect immediately
@@ -104,9 +104,8 @@ async def delete_command_rule(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     rule = await db.get(CommandRule, rule_id)
-    if rule is None:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    await db.delete(rule)
-
-    # Invalidate the in-memory cache so changes take effect immediately
-    invalidate_cache()
+    if rule is not None:
+        await db.delete(rule)
+        await db.commit()
+        # Invalidate the in-memory cache so changes take effect immediately
+        invalidate_cache()

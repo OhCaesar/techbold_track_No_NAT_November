@@ -262,6 +262,14 @@
   color: #dc2626;
 }
 
+.delete-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+  color: #d1d5db;
+}
+
 /* Loading / error / empty states */
 .rules-loading {
   text-align: center;
