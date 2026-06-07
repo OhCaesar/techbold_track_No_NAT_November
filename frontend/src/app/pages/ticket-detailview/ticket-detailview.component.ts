@@ -414,13 +414,15 @@ export class TicketDetailviewComponent implements OnInit {
 
   /** Rotating phrases for the "agent is working" indicator at the bottom of the chat. */
   private readonly loadingPhrases = [
-    '🤖 Thinking…',
-    '🔍 Diagnosing…',
-    '⚙️ Working on it…',
-    '📡 Gathering data…',
-    '🧠 Reasoning…',
-    '🔧 Preparing the next step…',
-    '📋 Reviewing output…',
+    'Preheating…',
+    'Prepping the ingredients…',
+    'Simmering…',
+    'Marinating…',
+    'Whisking…',
+    'Seasoning to taste…',
+    'Reducing the sauce…',
+    'Tasting…',
+    'Plating up…',
   ];
 
   /** Advance the loading indicator one step (a new phrase) and ensure it is shown. */
