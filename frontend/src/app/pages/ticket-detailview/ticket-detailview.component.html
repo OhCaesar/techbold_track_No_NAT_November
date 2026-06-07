@@ -74,14 +74,12 @@
         <span>LOGS</span>
       </button>
 
-      <div class="notes-section">
-        <h2 class="section-title">Notes</h2>
-        <p class="section-text">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed diam nonumy eirmod tempor
-          invidunt ut labore et dolore magna aliquyam erat, sed diam volutua. At vero eos et accusam
-          et....
-        </p>
-      </div>
+      @if (customer()?.system?.notes) {
+        <div class="notes-section">
+          <h2 class="section-title">Notes</h2>
+          <p class="section-text">{{ customer()!.system.notes }}</p>
+        </div>
+      }
 
       <div class="description-section">
         <h2 class="section-title">Description</h2>
