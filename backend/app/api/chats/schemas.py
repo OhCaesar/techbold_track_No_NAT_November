@@ -67,3 +67,13 @@ class SendMessageRequest(BaseModel):
 class ChatListResponse(BaseModel):
     chats: list[ChatResponse]
     count: int
+
+
+class ChatRunStateResponse(BaseModel):
+    """Live run-state of a chat, used by the chat list."""
+
+    chat_id: uuid.UUID
+    running: bool
+    waiting_for_input: bool
+    # "running" | "waiting_for_input" | "completed" | "failed"
+    state: str
