@@ -57,10 +57,9 @@ Docker Compose is the recommended way to run the entire stack (Frontend, Backend
    - `PHOENIX_API_TOKEN` (ERP credentials)
    - `OPENAI_API_KEY` (LLM access)
    - `AZURE_OPENAI_ENDPOINT` (LLM endpoint)
-3. Copy your SSH key file into the `keys/` directory:
-   ```bash
-   cp /path/to/your-key.pem keys/your-key.pem
-   ```
+3. Copy your SSH key files into the `keys/` directory.
+   - We have implemented the keys to map to customers based on the `customer_id`. The customer
+   with id `5001` will look for `keys/case1_key.pem`, the customer with id `5002` will look for `keys/case2_key.pem`, etc.
 
 ### 3. Run the Stack
 Start all services in detached mode or attached logs:
@@ -68,12 +67,12 @@ Start all services in detached mode or attached logs:
 docker compose up --build
 ```
 
-- **Frontend Workspace**: http://localhost (port 80)
-- **Backend API Docs**: http://localhost:8000/docs
+- **Frontend Workspace**: `http://localhost` (port 80)
+- **Backend API**: endpoints are exposed under `http://localhost:80/api` (e.g. `http://localhost:80/api/tickets`)
 
 ---
 
-## 💻 Local Development (Without Docker)
+## 💻 Local Development (Without Docker - NOT RECOMMENDED)
 
 ### Backend
 ```bash
