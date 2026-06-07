@@ -72,7 +72,7 @@ export class TicketListComponent implements OnInit {
       priority: ticket.priority,
       dueDate: ticket.sla_due_at
         ? new Date(ticket.sla_due_at).toLocaleDateString('de-AT')
-        : 'Kein Datum',
+        : 'No Date',
       tags: ticket.tags,
     }));
   }
