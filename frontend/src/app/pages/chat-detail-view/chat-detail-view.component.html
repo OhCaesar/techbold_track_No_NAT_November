@@ -20,7 +20,7 @@
     ↓
   </button>
 
-  <div class="chat-content" #chatContent>
+  <div class="chat-content" #chatContent (scroll)="onChatScroll()">
     @if (streamStatus) {
       <p class="stream-status">{{ streamStatus }}</p>
     }

@@ -41,6 +41,8 @@ interface OpenChat {
   completed: WritableSignal<boolean>;
   /** Internal counter to rotate the loading text on each streamed event. */
   loadingTick: number;
+  /** Handle for the word-by-word reveal timer (cleared on close). */
+  revealTimer?: ReturnType<typeof setInterval> | null;
 }
 
 @Component({
@@ -436,7 +438,6 @@ export class TicketDetailviewComponent implements OnInit {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
     const es = this.ticketService.streamChat(chatId);
     chat.eventSource = es;
-    let currentMessageId = '';
 
     console.log(
       '🔌 openStreamConnection: opening EventSource for',
@@ -447,26 +448,88 @@ export class TicketDetailviewComponent implements OnInit {
 
     this.tickLoading(chat);
 
+    // ── Word-by-word reveal engine (frontend-only smoothing) ────────────────
+    // text_delta chunks are buffered into `targetText`; a steady timer drips
+    // them into the visible message one word at a time, so the stream reads
+    // smoothly no matter how the backend happens to chunk its tokens. It speeds
+    // up when far behind (a big burst, or a reconnect that replays the buffer).
+    let currentMessageId = '';
+    let targetText = '';
+    let revealedText = '';
+
+    const setCurrentContent = (text: string) => {
+      const id = currentMessageId;
+      chat.messages.update((msgs) => msgs.map((m) => (m.id === id ? { ...m, content: text } : m)));
+    };
+
+    const stopReveal = () => {
+      if (chat.revealTimer != null) {
+        clearInterval(chat.revealTimer);
+        chat.revealTimer = null;
+      }
+    };
+
+    const revealStep = () => {
+      const remaining = targetText.length - revealedText.length;
+      if (remaining <= 0) {
+        stopReveal();
+        return;
+      }
+      // One word per tick normally; catch up fast when far behind.
+      const wordsThisTick = remaining > 600 ? 8 : remaining > 200 ? 3 : 1;
+      let next = revealedText.length;
+      for (let w = 0; w < wordsThisTick && next < targetText.length; w++) {
+        while (next < targetText.length && /\s/.test(targetText[next])) next++; // leading space
+        while (next < targetText.length && !/\s/.test(targetText[next])) next++; // the word
+        while (next < targetText.length && /\s/.test(targetText[next])) next++; // trailing space
+      }
+      revealedText = targetText.slice(0, next);
+      setCurrentContent(revealedText);
+      if (revealedText.length >= targetText.length) stopReveal();
+    };
+
+    const ensureRevealRunning = () => {
+      if (chat.revealTimer == null) {
+        chat.revealTimer = setInterval(revealStep, 38);
+      }
+    };
+
+    // Reveal everything received so far at once (used at boundaries / on finish).
+    const flushReveal = () => {
+      stopReveal();
+      if (currentMessageId && revealedText !== targetText) {
+        revealedText = targetText;
+        setCurrentContent(revealedText);
+      }
+    };
+
+    // Finish the current text bubble fully, then reset for the next one.
+    const endBubble = () => {
+      flushReveal();
+      currentMessageId = '';
+      targetText = '';
+      revealedText = '';
+    };
+
     es.addEventListener('text_delta', (event: any) => {
       const content = JSON.parse(event.data).content || '';
-      console.log('📝 text_delta:', content.substring(0, 50));
       this.tickLoading(chat);
       if (!currentMessageId) {
         const id = Math.random().toString();
         currentMessageId = id;
-        chat.messages.update((msgs) => [...msgs, { id, content }]);
+        targetText = content;
+        revealedText = '';
+        chat.messages.update((msgs) => [...msgs, { id, content: '' }]);
       } else {
-        const id = currentMessageId;
-        chat.messages.update((msgs) =>
-          msgs.map((m) => (m.id === id ? { ...m, content: m.content + content } : m)),
-        );
+        targetText += content;
       }
+      ensureRevealRunning();
     });
 
     es.addEventListener('tool_call_requested', (event: any) => {
       const data = JSON.parse(event.data);
       console.log('🔧 tool_call_requested:', data.tool_name, data.tool_call_id);
-      currentMessageId = '';
+      endBubble();
       // Pending calls need the technician's input → stop the working indicator;
       // auto-approved (read-only) calls keep working.
       if (data.auto_approved) {
@@ -521,7 +584,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('tool_result', (event: any) => {
       const data = JSON.parse(event.data);
-      currentMessageId = '';
+      endBubble();
       this.tickLoading(chat);
       this.updateToolCall(chat, data.tool_call_id, {
         status: 'executed',
@@ -533,7 +596,7 @@ export class TicketDetailviewComponent implements OnInit {
     es.addEventListener('agent_completed', (event: any) => {
       const data = JSON.parse(event.data);
       console.log('✅ agent_completed:', data.summary);
-      currentMessageId = '';
+      endBubble();
       chat.loading.set(false);
       chat.completed.set(true);
       chat.messages.update((msgs) => [
@@ -566,7 +629,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('agent_failed', (event: any) => {
       const data = JSON.parse(event.data);
-      currentMessageId = '';
+      endBubble();
       chat.loading.set(false);
       chat.status.set('failed');
       chat.messages.update((msgs) => [
@@ -587,6 +650,7 @@ export class TicketDetailviewComponent implements OnInit {
         return;
       }
       console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
+      endBubble();
       chat.loading.set(false);
       es.close();
       chat.messages.update((msgs) => [
@@ -640,6 +704,10 @@ export class TicketDetailviewComponent implements OnInit {
 
     const closed = chats[index];
     closed.eventSource?.close();
+    if (closed.revealTimer != null) {
+      clearInterval(closed.revealTimer);
+      closed.revealTimer = null;
+    }
 
     const remaining = chats.filter((c) => c.id !== chatId);
     this.openChats.set(remaining);
