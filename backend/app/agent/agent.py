@@ -286,6 +286,19 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
         if not approved:
             async with AsyncSessionLocal() as db:
                 await update_tool_call_status(db, tool_call.id, "rejected")
+                await save_audit_log(
+                    db,
+                    chat_id=deps.chat_id,
+                    ticket_id=str(deps.ticket_id),
+                    command=command,
+                    stdout="",
+                    stderr="",
+                    exit_code=0,
+                    duration_ms=0,
+                    was_blocked=True,
+                    auto_executed=False,
+                    accepted=False,
+                )
                 await db.commit()
             return "Command rejected by technician."
 
@@ -301,7 +314,17 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
         # 6. Persist audit log and tool result message
         async with AsyncSessionLocal() as db:
             audit_log = await save_audit_log(
-                db, deps.chat_id, str(deps.ticket_id), result,
+                db,
+                chat_id=deps.chat_id,
+                ticket_id=str(deps.ticket_id),
+                command=command,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                exit_code=result.exit_code,
+                duration_ms=result.duration_ms,
+                was_blocked=False,
+                auto_executed=auto_approved,
+                accepted=True,
             )
             result_msg = await save_message(
                 db, deps.chat_id, "tool",

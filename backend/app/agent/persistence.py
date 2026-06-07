@@ -70,18 +70,26 @@ async def save_audit_log(
     db: AsyncSession,
     chat_id: uuid.UUID,
     ticket_id: str,
-    result: SSHResult,
+    command: str,
+    stdout: str = "",
+    stderr: str = "",
+    exit_code: int = 0,
+    duration_ms: int = 0,
     was_blocked: bool = False,
+    auto_executed: bool = False,
+    accepted: bool = True,
 ) -> AuditLog:
     log = AuditLog(
         chat_id=chat_id,
         ticket_id=ticket_id,
-        command=result.command,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        exit_code=result.exit_code,
-        duration_ms=result.duration_ms,
+        command=command,
+        stdout=stdout,
+        stderr=stderr,
+        exit_code=exit_code,
+        duration_ms=duration_ms,
         was_blocked=was_blocked,
+        auto_executed=auto_executed,
+        accepted=accepted,
     )
     db.add(log)
     await db.flush()

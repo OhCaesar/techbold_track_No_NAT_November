@@ -39,6 +39,8 @@ class AuditLog(Base):
     exit_code: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     was_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    auto_executed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    accepted: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     executed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

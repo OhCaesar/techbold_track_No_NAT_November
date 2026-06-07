@@ -169,11 +169,14 @@ async def _generate_activity(
     )
     audit_logs = result.scalars().all()
 
-    commands_lines = [
-        f"$ {log.command}\n# exit={log.exit_code}\n{log.stdout[:400]}"
-        for log in audit_logs
-        if not log.was_blocked
-    ]
+    commands_lines = []
+    for log in audit_logs:
+        if not log.accepted:
+            commands_lines.append(f"$ {log.command}\n# REJECTED BY TECHNICIAN")
+        elif log.was_blocked:
+            commands_lines.append(f"$ {log.command}\n# BLOCKED BY SAFETY GUARD")
+        else:
+            commands_lines.append(f"$ {log.command}\n# exit={log.exit_code}\n{log.stdout[:400]}")
     commands_text = "\n\n".join(commands_lines) if commands_lines else "(no commands executed)"
 
     extraction_prompt = (
