@@ -76,6 +76,18 @@ async def start_agent(
     restart_message: if provided, used as the first user prompt instead of
     building one from ERP data (used when restarting a stopped/failed chat).
     """
+    # If a previous task is still alive (or in its finally block), cancel it
+    # and wait for it to finish before starting a new one.  This prevents the
+    # old task's cleanup from racing with the new task's setup.
+    old_task = _agent_tasks.pop(chat_id, None)
+    old_queue = _message_queues.pop(chat_id, None)
+    if old_task is not None and not old_task.done():
+        old_task.cancel()
+        try:
+            await old_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
     queue: asyncio.Queue[str] = asyncio.Queue()
     _message_queues[chat_id] = queue
     task = asyncio.create_task(_run_agent_loop(chat_id, ticket_id, queue, restart_message))
@@ -264,7 +276,10 @@ async def _run_agent_loop(
         finally:
             if runner is not None:
                 await asyncio.to_thread(runner.close_connection)
-            await agent_event_bus.close(chat_id)
+            # NOTE: we intentionally do NOT call agent_event_bus.close() here.
+            # The agent_stopped / agent_failed events already signal the frontend;
+            # closing the bus would destroy SSE subscriber queues and prevent a
+            # restarted agent from reaching connected clients.
 
 
 async def _generate_activity(

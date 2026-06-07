@@ -94,8 +94,9 @@ async def stream_chat(chat_id: uuid.UUID) -> EventSourceResponse:
                 if event is None:
                     break
 
-                event_type = event.pop("event", "message")
-                yield {"event": event_type, "data": json.dumps(event)}
+                event_type = event.get("event", "message")
+                payload = {k: v for k, v in event.items() if k != "event"}
+                yield {"event": event_type, "data": json.dumps(payload)}
         finally:
             agent_event_bus.unsubscribe(chat_id, q)
 

@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   OnInit,
+  OnDestroy,
   signal,
   WritableSignal,
   SecurityContext,
@@ -56,7 +57,7 @@ interface OpenChat {
   styleUrl: './ticket-detailview.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TicketDetailviewComponent implements OnInit {
+export class TicketDetailviewComponent implements OnInit, OnDestroy {
   // All mutable template state is held in signals. This is a zoneless app, so
   // signal writes are what schedule change detection — including the streamed
   // SSE updates below. No manual markForCheck()/tick() needed.
@@ -86,6 +87,23 @@ export class TicketDetailviewComponent implements OnInit {
         this.loadTicket(ticketId);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    // Close all open EventSources and clear reveal timers so we don't leak
+    // orphaned SSE connections.  Leaked connections keep subscriber queues
+    // alive in the backend event bus, which corrupts events for future
+    // subscribers via the shared-dict mutation in the SSE generator.
+    for (const chat of this.openChats()) {
+      if (chat.eventSource) {
+        chat.eventSource.close();
+        chat.eventSource = null;
+      }
+      if (chat.revealTimer != null) {
+        clearInterval(chat.revealTimer);
+        chat.revealTimer = null;
+      }
+    }
   }
 
   private loadTicket(ticketId: string): void {
@@ -365,8 +383,12 @@ export class TicketDetailviewComponent implements OnInit {
     // SSE is needed for active runs AND idle chats (so the EventSource is ready
     // before the user sends the next message — avoids a timing race where the
     // agent starts emitting events before we have subscribed).
+    // Also open for stopped/failed so the EventSource is pre-established
+    // before the user sends a restart message — avoids a timing race where
+    // the agent starts publishing before we have subscribed.
     const shouldOpenStream =
-      status === 'running' || status === 'awaiting_approval' || status === 'idle';
+      status === 'running' || status === 'awaiting_approval' || status === 'idle' ||
+      status === 'stopped' || status === 'failed';
 
     // Tool messages from the DB are skipped only when a live stream will re-emit
     // them as interactive cards.  For idle/stopped/failed we keep them.
