@@ -95,7 +95,15 @@ npm run start
 
 ## 🧪 Testing
 
-### Backend Unit & Integration Tests
+### Backend Unit & Integration Tests (Docker)
+You can build and run the backend tests inside an isolated Docker container:
+```bash
+cd backend
+docker build -t backend-tests -f build.Dockerfile .
+docker run --rm backend-tests
+```
+
+### Backend Unit & Integration Tests (Local)
 ```bash
 cd backend
 pytest
