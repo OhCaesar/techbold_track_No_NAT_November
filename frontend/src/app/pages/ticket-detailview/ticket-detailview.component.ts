@@ -552,6 +552,7 @@ export class TicketDetailviewComponent implements OnInit {
 
     es.addEventListener('agent_stopped', () => {
       currentMessageId = '';
+      chat.loading.set(false);
       chat.status.set('stopped');
       chat.messages.update((msgs) => [
         ...msgs,
@@ -715,7 +716,12 @@ export class TicketDetailviewComponent implements OnInit {
       if (chat.eventSource) {
         chat.eventSource.close();
       }
-      this.connectStream(chat);
+      // Set status to 'running' before opening the stream so the isLive check
+      // inside connectStream doesn't block the SSE connection.
+      // Use openStreamConnection directly to avoid reloading history (which
+      // would wipe the optimistic user message we're about to add).
+      chat.status.set('running');
+      this.openStreamConnection(chat);
     }
 
     chat.messages.update((msgs) => [
