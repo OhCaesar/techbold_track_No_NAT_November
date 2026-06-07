@@ -1,0 +1,139 @@
+<div class="panel-backdrop" (click)="onBackdropClick($event)">
+  <div class="panel-container">
+    <!-- Header -->
+    <div class="panel-header">
+      <div class="panel-title-row">
+        <div class="panel-title-group">
+          <svg class="panel-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16z" fill="currentColor" opacity="0.2"/>
+            <path d="M12 7v2m0 4h.01M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <h2>Command Rules</h2>
+        </div>
+        <button class="close-button" (click)="close()" title="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <button
+          class="tab-button"
+          [class.active]="activeTab() === 'whitelist'"
+          (click)="setTab('whitelist')"
+        >
+          <span class="tab-dot tab-dot--whitelist"></span>
+          Whitelist
+          <span class="tab-count">{{ whitelistRules().length }}</span>
+        </button>
+        <button
+          class="tab-button"
+          [class.active]="activeTab() === 'blacklist'"
+          (click)="setTab('blacklist')"
+        >
+          <span class="tab-dot tab-dot--blacklist"></span>
+          Blacklist
+          <span class="tab-count">{{ blacklistRules().length }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="panel-content">
+      @if (activeTab() === 'whitelist') {
+        <p class="tab-description">
+          Commands matching these patterns are <strong>auto-approved</strong> without requiring technician confirmation.
+        </p>
+      } @else {
+        <p class="tab-description">
+          Commands matching these patterns are <strong>always blocked</strong> and will never be executed.
+        </p>
+      }
+
+      @if (error()) {
+        <div class="rules-error">{{ error() }}</div>
+      } @else if (isLoading()) {
+        <div class="rules-loading">Loading rules…</div>
+      } @else {
+        <div class="rules-list">
+          @for (rule of activeRules(); track rule.id) {
+            <div class="rule-card">
+              <div class="rule-content">
+                <code class="rule-pattern">{{ rule.pattern }}</code>
+                @if (rule.description) {
+                  <span class="rule-description">{{ rule.description }}</span>
+                }
+              </div>
+              <div class="rule-actions">
+                @if (rule.is_default) {
+                  <span class="rule-badge rule-badge--default">Default</span>
+                } @else {
+                  <span class="rule-badge rule-badge--custom">Custom</span>
+                }
+                <button
+                  class="delete-button"
+                  (click)="deleteRule(rule)"
+                  title="Remove rule"
+                  [disabled]="deletingRuleIds()[rule.id]"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          } @empty {
+            <div class="rules-empty">No {{ activeTab() }} rules configured.</div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Add form / button -->
+    <div class="panel-footer">
+      @if (showAddForm()) {
+        <div class="add-form">
+          <div class="form-field">
+            <label for="rule-pattern">Regex Pattern</label>
+            <input
+              id="rule-pattern"
+              type="text"
+              [(ngModel)]="newPattern"
+              placeholder="e.g. ^sudo systemctl restart\b"
+              [class.input-error]="addError()"
+              (keydown.enter)="addRule()"
+            />
+          </div>
+          <div class="form-field">
+            <label for="rule-description">Description (optional)</label>
+            <input
+              id="rule-description"
+              type="text"
+              [(ngModel)]="newDescription"
+              placeholder="Human-readable explanation"
+              (keydown.enter)="addRule()"
+            />
+          </div>
+          @if (addError()) {
+            <div class="form-error">{{ addError() }}</div>
+          }
+          <div class="form-actions">
+            <button class="btn btn--secondary" (click)="toggleAddForm()">Cancel</button>
+            <button class="btn btn--primary" (click)="addRule()" [disabled]="isAdding()">
+              {{ isAdding() ? 'Adding…' : 'Add Rule' }}
+            </button>
+          </div>
+        </div>
+      } @else {
+        <button class="add-button" (click)="toggleAddForm()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Add {{ activeTab() === 'whitelist' ? 'Whitelist' : 'Blacklist' }} Rule
+        </button>
+      }
+    </div>
+  </div>
+</div>
