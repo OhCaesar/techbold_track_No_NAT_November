@@ -33,6 +33,12 @@ _message_queues: dict[uuid.UUID, asyncio.Queue[str]] = {}
 # ---------------------------------------------------------------------------
 
 
+def is_agent_running(chat_id: uuid.UUID) -> bool:
+    """True if a live (not-yet-finished) agent task exists for this chat."""
+    task = _agent_tasks.get(chat_id)
+    return task is not None and not task.done()
+
+
 def abort_agent(chat_id: uuid.UUID) -> bool:
     """Cancel the running agent task. Returns True if a live task was found."""
     approval_gate.cancel_all_for_chat(chat_id)

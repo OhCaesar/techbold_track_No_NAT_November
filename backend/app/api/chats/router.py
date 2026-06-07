@@ -11,18 +11,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from ...agent.approval_gate import approval_gate
 from ...agent.event_bus import agent_event_bus
-from ...agent.orchestrator import abort_agent, send_message_to_agent, start_agent
+from ...agent.orchestrator import abort_agent, is_agent_running, send_message_to_agent, start_agent
 from ...db.models import Chat, ChatMessage, ToolCall
 from ...db.session import get_db
 from ...erp.client import PhoenixClient, get_phoenix_client
 from ...erp.models import TicketStatus
 from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
+from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, ChatRunStateResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -99,6 +100,55 @@ async def stream_chat(chat_id: uuid.UUID) -> EventSourceResponse:
             agent_event_bus.unsubscribe(chat_id, q)
 
     return EventSourceResponse(_generate(), ping=3600)
+
+
+@router.get(
+    "/{chat_id}/running",
+    response_model=ChatRunStateResponse,
+    summary="Whether a chat's agent is currently running",
+    description=(
+        "Reports the live run-state of a chat: 'running' (agent actively working), "
+        "'waiting_for_input' (paused — a command awaits technician approval, or the agent "
+        "is idle and not finished), 'completed', or 'failed'."
+    ),
+)
+async def chat_run_state(
+    chat_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> ChatRunStateResponse:
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    pending_count = await db.execute(
+        select(func.count())
+        .select_from(ToolCall)
+        .where(ToolCall.chat_id == chat_id, ToolCall.status == "pending")
+    )
+    has_pending = (pending_count.scalar() or 0) > 0
+    live = is_agent_running(chat_id)
+
+    if chat.status in ("completed", "failed"):
+        state = chat.status
+        running = False
+    elif has_pending:
+        # A command is waiting for the technician to approve/reject it.
+        state = "waiting_for_input"
+        running = False
+    elif live:
+        state = "running"
+        running = True
+    else:
+        # Not finished, but no live task and nothing pending → treat as waiting.
+        state = "waiting_for_input"
+        running = False
+
+    return ChatRunStateResponse(
+        chat_id=chat_id,
+        running=running,
+        waiting_for_input=state == "waiting_for_input",
+        state=state,
+    )
 
 
 @router.get(

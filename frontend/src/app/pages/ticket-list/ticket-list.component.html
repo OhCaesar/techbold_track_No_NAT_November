@@ -5,6 +5,61 @@
     <app-search-bar placeholder="Search tickets…" [(value)]="searchQuery"></app-search-bar>
   </div>
 
+  <div class="filters-row">
+    <div class="filter-bar">
+      <span class="filter-label">Priority</span>
+      @for (p of priorities; track p) {
+        <button
+          type="button"
+          class="filter-chip"
+          [class.active]="selectedPriority() === p"
+          [attr.data-priority]="p.toLowerCase()"
+          (click)="setPriority(p)"
+        >
+          {{ priorityLabel(p) }}
+          <span class="filter-chip__count">{{ priorityCount(p) }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="filter-bar">
+      <span class="filter-label">Status</span>
+      @for (s of statuses; track s) {
+        <button
+          type="button"
+          class="filter-chip"
+          [class.active]="selectedStatus() === s"
+          [attr.data-status]="s.toLowerCase()"
+          (click)="setStatus(s)"
+        >
+          {{ statusLabel(s) }}
+          <span class="filter-chip__count">{{ statusCount(s) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="sort-bar">
+    <span class="filter-label">Sort by</span>
+    <select
+      class="sort-select"
+      [value]="sortField()"
+      (change)="setSortField($any($event.target).value)"
+    >
+      @for (f of sortFields; track f.value) {
+        <option [value]="f.value">{{ f.label }}</option>
+      }
+    </select>
+    <button
+      type="button"
+      class="sort-dir"
+      (click)="toggleSortDir()"
+      [title]="sortDir() === 'asc' ? 'Ascending' : 'Descending'"
+    >
+      {{ sortDir() === 'asc' ? '↑ Ascending' : '↓ Descending' }}
+    </button>
+  </div>
+
   @if (error()) {
     <div class="list-error">
       <p>{{ error() }}</p>
@@ -15,11 +70,21 @@
     </div>
   } @else {
     <div class="chat-list">
+      @if (filteredItems.length === 0) {
+        <div class="list-empty">No tickets match the current filters.</div>
+      }
       @for (item of filteredItems; track item.id) {
         <div class="chat-item" [routerLink]="['/ticket-detail', item.id]">
           <div class="chat-item__left">
             <span class="chat-item__company">{{ item.company }}</span>
             <span class="chat-item__title">{{ item.title }}</span>
+          </div>
+
+          <div class="chat-item__status">
+            <span class="chat-item__label">Status</span>
+            <span class="chat-item__status-value" [attr.data-status]="item.status.toLowerCase()">{{
+              item.status
+            }}</span>
           </div>
 
           <div class="chat-item__priority">
