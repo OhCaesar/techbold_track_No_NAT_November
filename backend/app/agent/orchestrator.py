@@ -187,10 +187,11 @@ async def _generate_activity(
         f"{commands_text[:2000]}\n\n"
         "Return a JSON object with exactly these keys:\n"
         "  summary          – one sentence: what was restored/fixed\n"
+        "  description      – detailed description of what was restored/fixed\n"
         "  root_cause       – the technical root cause (not the symptom)\n"
         "  actions_taken    – ordered prose: diagnosis steps then fix steps\n"
-        "  commands_summary – key commands used, no output, no secrets\n"
-        "  validation_result – concrete proof the customer benefit is restored\n"
+        "  commands_summary – ALL commands used, no output, no secrets. ALL commands must be present here.\n"
+        "  validation_result – concrete proof the customer benefit is restored. This is mostly done by executing the validation scripts.\n"
     )
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -211,6 +212,7 @@ async def _generate_activity(
         ticket_id=ticket_id,
         start_datetime=start_time,
         end_datetime=end_time,
+        description=data.get("description") or (narrative[:1000] if narrative else ""),
         summary=data.get("summary") or (narrative[:200] if narrative else "Incident resolved."),
         root_cause=data.get("root_cause") or "See narrative.",
         actions_taken=data.get("actions_taken") or narrative[:1000],
