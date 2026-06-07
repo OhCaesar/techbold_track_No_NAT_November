@@ -303,16 +303,55 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
                     auto_executed=False,
                     accepted=False,
                 )
+                await save_message(
+                    db, deps.chat_id, "tool",
+                    json.dumps({
+                        "tool_call_id": str(tool_call.id),
+                        "command": command,
+                        "reason": reason,
+                        "stdout": "",
+                        "stderr": "Command rejected by technician.",
+                        "exit_code": -1,
+                    }),
+                )
                 await db.commit()
+            await agent_event_bus.publish(deps.chat_id, {
+                "event": "tool_result",
+                "tool_call_id": str(tool_call.id),
+                "stdout": "",
+                "stderr": "Command rejected by technician.",
+                "exit_code": -1,
+                "blocked": False,
+            })
             return "Command rejected by technician."
 
         # 5. Execute via sync runner in a thread
         try:
             result: SSHResult = await asyncio.to_thread(deps.runner.run, command)
         except SSHConnectionError as exc:
+            error_msg = f"SSH connection error: {exc}"
             async with AsyncSessionLocal() as db:
                 await update_tool_call_status(db, tool_call.id, "executed")
+                await save_message(
+                    db, deps.chat_id, "tool",
+                    json.dumps({
+                        "tool_call_id": str(tool_call.id),
+                        "command": command,
+                        "reason": reason,
+                        "stdout": "",
+                        "stderr": error_msg,
+                        "exit_code": -1,
+                    }),
+                )
                 await db.commit()
+            await agent_event_bus.publish(deps.chat_id, {
+                "event": "tool_result",
+                "tool_call_id": str(tool_call.id),
+                "stdout": "",
+                "stderr": error_msg,
+                "exit_code": -1,
+                "blocked": False,
+            })
             return f"CONNECTION_ERROR: {exc}"
 
         # 6. Persist audit log and tool result message

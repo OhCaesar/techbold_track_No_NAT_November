@@ -206,8 +206,10 @@ async def send_message(
 
     if chat.status == "idle":
         accepted = await send_message_to_agent(chat_id, body.content)
-        if not accepted:
-            raise HTTPException(status_code=409, detail="Agent queue not available")
+        if accepted:
+            return {"accepted": True}
+        # Queue evicted (server restart) — restart the agent with this message.
+        background_tasks.add_task(start_agent, chat_id, chat.ticket_id, body.content)
         return {"accepted": True}
 
     if chat.status in ("stopped", "failed"):
