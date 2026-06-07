@@ -22,6 +22,8 @@ class AuditLogResponse(BaseModel):
     exit_code: int
     duration_ms: int
     was_blocked: bool
+    auto_executed: bool
+    accepted: bool
     executed_at: datetime
 
 

@@ -59,3 +59,43 @@
   font-weight: 500;
   color: #00d964;
 }
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-indicator .status-text {
+  margin: 0;
+}
+
+.status-indicator.completed {
+  color: #00aa88;
+}
+
+.status-indicator.failed {
+  color: #dd0000;
+}
+
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.status-indicator.completed .status-icon {
+  background-color: #00aa88;
+}
+
+.status-indicator.failed .status-icon {
+  background-color: #dd0000;
+}

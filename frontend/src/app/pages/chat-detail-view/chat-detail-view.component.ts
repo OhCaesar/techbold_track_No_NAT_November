@@ -1,6 +1,7 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExecutionDisplayComponent } from '../../components/execution-display/execution-display.component';
+import { MarkdownPipe } from '../../pipes/markdown.pipe';
 
 export interface ToolClaim {
   name: string;
@@ -17,6 +18,10 @@ export interface ToolCallView {
   status: ToolCallStatus;
   output?: string;
   exitCode?: number;
+  /** Short one-line reason shown as the collapsed thought-process indicator. */
+  reason?: string;
+  /** Full reasoning that preceded the call, shown when the element is expanded. */
+  thinking?: string;
 }
 
 export interface ExecutionStep {
@@ -53,7 +58,7 @@ export interface ChatMessage {
 @Component({
   selector: 'app-chat-detail-view',
   standalone: true,
-  imports: [CommonModule, ExecutionDisplayComponent],
+  imports: [CommonModule, ExecutionDisplayComponent, MarkdownPipe],
   templateUrl: './chat-detail-view.component.html',
   styleUrl: './chat-detail-view.component.css',
 })
@@ -66,6 +71,9 @@ export class ChatDetailViewComponent {
   @Output() toolCallResolved = new EventEmitter<{ toolCallId: string; approved: boolean }>();
   @Output() stopClicked = new EventEmitter<void>();
   @Output() messageSent = new EventEmitter<string>();
+  @Output() back = new EventEmitter<void>();
+
+  @ViewChild('chatContent') private chatContent?: ElementRef<HTMLElement>;
 
   expandedThinking: { [key: string]: boolean } = {};
 
@@ -82,6 +90,13 @@ export class ChatDetailViewComponent {
     return ['idle', 'stopped', 'failed'].includes(this.chatStatus);
   }
 
+  /** Manually scroll the chat to the newest (last) message. */
+  scrollToLatest(): void {
+    const el = this.chatContent?.nativeElement;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }
+
   get messages(): ChatMessage[] {
     // activeChat.messages is a signal in the live app (read it to track the
     // reactive dependency so streamed updates re-render); tests may pass a plain
@@ -91,6 +106,24 @@ export class ChatDetailViewComponent {
       return m();
     }
     return m ?? [];
+  }
+
+  /** True while the agent is actively streaming (not waiting for input / not done). */
+  get loading(): boolean {
+    const l = this.activeChat?.loading;
+    return typeof l === 'function' ? l() : !!l;
+  }
+
+  /** Rotating "working…" text shown at the bottom while streaming. */
+  get loadingText(): string {
+    const t = this.activeChat?.loadingText;
+    return typeof t === 'function' ? t() : (t ?? '');
+  }
+
+  /** True once the agent has reported completion. */
+  get completed(): boolean {
+    const c = this.activeChat?.completed;
+    return typeof c === 'function' ? c() : !!c;
   }
 
   /** Connection placeholder shown only before the first event arrives. */
@@ -108,6 +141,10 @@ export class ChatDetailViewComponent {
 
   selectChat(chat: any) {
     this.chatSelected.emit(chat);
+  }
+
+  goBack() {
+    this.back.emit();
   }
 
   closeChat(chatId: number) {

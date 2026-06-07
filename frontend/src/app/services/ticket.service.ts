@@ -79,4 +79,9 @@ export class TicketService {
   sendMessage(chatId: string, content: string): Observable<any> {
     return this.http.post(`${this.chatsUrl}/${chatId}/messages`, { content });
   }
+
+  /** Fetch all persisted messages for a chat (oldest first by sequence). */
+  getChatMessages(chatId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.chatsUrl}/${chatId}/messages`);
+  }
 }

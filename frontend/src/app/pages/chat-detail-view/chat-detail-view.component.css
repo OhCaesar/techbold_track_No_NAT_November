@@ -108,6 +108,34 @@
   position: sticky;
   top: 45px;
   z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-to-list-button {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  color: #666666;
+  transition: all 0.2s ease;
+}
+
+.back-to-list-button:hover {
+  background-color: #e8e8e8;
+  border-color: #999999;
+}
+
+.chat-header .chat-name {
+  flex: 1;
+  text-align: center;
 }
 
 .chat-name {
@@ -124,7 +152,6 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  scroll-behavior: smooth;
   min-height: 0;
 }
 
@@ -550,4 +577,98 @@
   background: #e8f4fd;
   border-radius: 8px;
   padding: 6px 10px;
+}
+
+.scroll-to-latest {
+  position: absolute;
+  right: 24px;
+  bottom: 90px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  color: #333333;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 11;
+}
+
+.scroll-to-latest:hover {
+  background-color: #f5f5f5;
+}
+
+.chat-completed-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background-color: #00aa88;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chat-loading {
+  font-size: 13px;
+  font-style: italic;
+  color: #888888;
+  animation: chat-loading-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes chat-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── Tool-call thought process (expandable) ─── */
+.tool-thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background-color: #f3f4f6;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: #475569;
+}
+
+.tool-thinking-toggle:hover {
+  background-color: #e9edf3;
+}
+
+.tool-thinking-caret {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.tool-thinking-label {
+  flex: 1;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-thinking-body {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
