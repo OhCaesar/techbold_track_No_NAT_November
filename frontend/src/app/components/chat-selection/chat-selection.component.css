@@ -41,6 +41,15 @@
   transform: translateY(-2px);
 }
 
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  padding: 40px 0;
+  opacity: 0.85;
+}
+
 .create-chat-button {
   margin-top: 40px;
   padding: 12px 32px;
