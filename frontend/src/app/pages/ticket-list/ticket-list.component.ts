@@ -1,6 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { KanbanSwitchToggleComponent } from '../../components/kanban-list-toggle/kanban-list-toggle.component';
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
 import { TicketService } from '../../services/ticket.service';
@@ -169,9 +170,16 @@ export class TicketListComponent implements OnInit {
     this.isLoading.set(true);
     this.error.set(null);
 
-    this.ticketService.getTickets().subscribe({
-      next: (response) => {
-        this.items.set(this.mapTicketsToListItems(response.tickets));
+    forkJoin({
+      tickets: this.ticketService.getTickets(),
+      chats: this.ticketService.getAllChats(),
+    }).subscribe({
+      next: ({ tickets, chats }) => {
+        const chatCounts = new Map<string, number>();
+        for (const chat of chats.chats) {
+          chatCounts.set(chat.ticket_id, (chatCounts.get(chat.ticket_id) ?? 0) + 1);
+        }
+        this.items.set(this.mapTicketsToListItems(tickets.tickets, chatCounts));
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -182,7 +190,7 @@ export class TicketListComponent implements OnInit {
     });
   }
 
-  private mapTicketsToListItems(tickets: Ticket[]): ListItem[] {
+  private mapTicketsToListItems(tickets: Ticket[], chatCounts: Map<string, number>): ListItem[] {
     return tickets.map((ticket) => ({
       id: ticket.id,
       company: ticket.customer_name,
@@ -195,6 +203,7 @@ export class TicketListComponent implements OnInit {
       dueDateRaw: ticket.sla_due_at ? new Date(ticket.sla_due_at).getTime() : null,
       createdRaw: ticket.created_at ? new Date(ticket.created_at).getTime() : null,
       tags: ticket.tags,
+      count: chatCounts.get(ticket.id.toString()) ?? 0,
     }));
   }
 }
