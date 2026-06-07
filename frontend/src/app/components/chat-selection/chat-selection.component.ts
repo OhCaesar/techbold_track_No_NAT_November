@@ -10,6 +10,7 @@ import { ChatListElementComponent } from '../chat-list-element/chat-list-element
 })
 export class ChatSelectionComponent {
   @Input() availableChats: any[] = [];
+  @Input() ticketTitle = '';
   @Output() chatSelected = new EventEmitter<any>();
   @Output() createChatClicked = new EventEmitter<void>();
 
