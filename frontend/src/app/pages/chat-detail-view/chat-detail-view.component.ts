@@ -90,15 +90,15 @@ export class ChatDetailViewComponent implements AfterViewInit, OnChanges, OnDest
 
   get chatStatus(): string {
     const s = this.activeChat?.status;
-    return typeof s === 'function' ? s() : (s ?? 'running');
+    return typeof s === 'function' ? s() : (s ?? '');
   }
 
   get canStop(): boolean {
-    return ['running', 'awaiting_approval', 'idle'].includes(this.chatStatus);
+    return ['running', 'waiting_on_approval'].includes(this.chatStatus);
   }
 
   get canSendMessage(): boolean {
-    return ['idle', 'stopped', 'failed'].includes(this.chatStatus);
+    return ['idle', 'stopped', 'failed'].includes(this.chatStatus) || this.chatStatus === '';
   }
 
   /**

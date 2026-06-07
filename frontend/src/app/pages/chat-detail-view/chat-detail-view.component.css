@@ -611,14 +611,62 @@
   background-color: #f5f5f5;
 }
 
-.chat-completed-badge {
+.chat-status-badge {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border-radius: 12px;
-  background-color: #00aa88;
-  color: #fff;
   font-size: 12px;
   font-weight: 600;
+}
+
+.badge-running {
+  background-color: #e8f0fe;
+  color: #2563eb;
+}
+
+.badge-running .status-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #2563eb;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner 0.8s linear infinite;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.badge-waiting {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.badge-waiting .status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #d97706;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.badge-stopped {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.badge-stopped .status-icon {
+  font-size: 12px;
 }
 
 .chat-loading {

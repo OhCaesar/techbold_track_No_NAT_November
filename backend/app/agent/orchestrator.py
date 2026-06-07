@@ -262,7 +262,7 @@ async def _run_agent_loop(
                 "_run_agent_loop failed chat_id=%s ticket_id=%s: %s",
                 chat_id, ticket_id, exc,
             )
-            chat.status = "failed"
+            chat.status = "stopped"
             try:
                 await db.commit()
             except Exception:

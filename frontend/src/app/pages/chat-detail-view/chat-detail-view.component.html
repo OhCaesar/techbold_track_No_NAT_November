@@ -11,8 +11,21 @@
 
   <div class="chat-header">
     <h2 class="chat-name">{{ activeChat?.name }}</h2>
-    @if (completed) {
-      <span class="chat-completed-badge">✓ Completed</span>
+    @if (chatStatus === 'running') {
+      <div class="chat-status-badge badge-running">
+        <span class="status-spinner"></span>
+        Running
+      </div>
+    } @else if (chatStatus === 'waiting_on_approval') {
+      <div class="chat-status-badge badge-waiting">
+        <span class="status-dot"></span>
+        Waiting on Approval
+      </div>
+    } @else if (chatStatus === 'stopped') {
+      <div class="chat-status-badge badge-stopped">
+        <span class="status-icon">🛑</span>
+        Stopped
+      </div>
     }
   </div>
 

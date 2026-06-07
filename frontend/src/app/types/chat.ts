@@ -10,11 +10,9 @@ export interface ChatListResponse {
   count: number;
 }
 
-export type ChatRunStateValue = 'running' | 'waiting_for_input' | 'completed' | 'failed';
+export type ChatStatus = 'running' | 'waiting_on_approval' | 'stopped' | null;
 
-export interface ChatRunState {
+export interface ChatStatusResponse {
   chat_id: string;
-  running: boolean;
-  waiting_for_input: boolean;
-  state: ChatRunStateValue;
+  status: ChatStatus;
 }
