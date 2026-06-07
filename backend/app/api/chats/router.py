@@ -17,10 +17,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from ...agent.approval_gate import approval_gate
 from ...agent.event_bus import agent_event_bus
-from ...agent.orchestrator import start_agent
+from ...agent.orchestrator import abort_agent, send_message_to_agent, start_agent
 from ...db.models import Chat, ChatMessage, ToolCall
 from ...db.session import get_db
-from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, StartChatRequest, ToolCallResponse, ChatListResponse
+from .schemas import ApprovalRequest, ChatMessageSchema, ChatResponse, SendMessageRequest, StartChatRequest, ToolCallResponse, ChatListResponse
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -166,3 +166,48 @@ async def resolve_tool_call(
     )
 
     return ToolCallResponse.model_validate(tool_call)
+
+
+@router.post(
+    "/{chat_id}/abort",
+    response_model=ChatResponse,
+    summary="Stop the running agent",
+)
+async def abort_chat(
+    chat_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> ChatResponse:
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.status not in ("running", "awaiting_approval", "idle"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot stop chat with status '{chat.status}'",
+        )
+    abort_agent(chat_id)
+    return ChatResponse.model_validate(chat, from_attributes=True)
+
+
+@router.post(
+    "/{chat_id}/messages",
+    status_code=202,
+    summary="Send a message to an idle agent",
+)
+async def send_message(
+    chat_id: uuid.UUID,
+    body: SendMessageRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.status != "idle":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Agent is not idle (status: '{chat.status}')",
+        )
+    accepted = await send_message_to_agent(chat_id, body.content)
+    if not accepted:
+        raise HTTPException(status_code=409, detail="Agent queue not available")
+    return {"accepted": True}

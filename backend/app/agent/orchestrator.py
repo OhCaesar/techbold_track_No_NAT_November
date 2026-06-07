@@ -14,21 +14,84 @@ from ..db.session import AsyncSessionLocal
 from ..erp.client import PhoenixClient
 from ..erp.models import ActivityCreate, TicketStatus
 from .agent import TicketContext, autopilot_agent, build_runner_for_customer
+from .approval_gate import approval_gate
 from .event_bus import agent_event_bus
 from .persistence import save_message
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Per-chat task and message-queue registries
+# ---------------------------------------------------------------------------
+
+_agent_tasks: dict[uuid.UUID, asyncio.Task] = {}
+_message_queues: dict[uuid.UUID, asyncio.Queue[str]] = {}
+
+
+# ---------------------------------------------------------------------------
+# Public API: abort and send-message
+# ---------------------------------------------------------------------------
+
+
+def abort_agent(chat_id: uuid.UUID) -> bool:
+    """Cancel the running agent task. Returns True if a live task was found."""
+    approval_gate.cancel_all_for_chat(chat_id)
+    task = _agent_tasks.get(chat_id)
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True
+
+
+async def send_message_to_agent(chat_id: uuid.UUID, content: str) -> bool:
+    """Enqueue a user message for an idle agent. Returns True if queue exists."""
+    queue = _message_queues.get(chat_id)
+    if queue is None:
+        return False
+    await queue.put(content)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Entry point (called by BackgroundTasks)
+# ---------------------------------------------------------------------------
+
 
 async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
     """
-    Orchestrates a full troubleshooting run for one ticket.
+    Thin dispatcher: creates the real asyncio.Task and registers it so it can
+    be cancelled via abort_agent(). Awaits the task so Starlette keeps the
+    background-task context alive.
+    """
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    _message_queues[chat_id] = queue
+    task = asyncio.create_task(_run_agent_loop(chat_id, ticket_id, queue))
+    _agent_tasks[chat_id] = task
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    finally:
+        _agent_tasks.pop(chat_id, None)
+        _message_queues.pop(chat_id, None)
 
-    1. Fetches ticket + customer system from the Phoenix ERP.
-    2. Runs the pydantic-ai agent, streaming text deltas to the event bus.
-    3. Persists messages to the DB.
-    4. After the run, extracts structured activity fields via a second LLM call.
-    5. Submits the activity to the ERP and sets the ticket status to DONE.
+
+# ---------------------------------------------------------------------------
+# Multi-turn agent loop
+# ---------------------------------------------------------------------------
+
+
+async def _run_agent_loop(
+    chat_id: uuid.UUID,
+    ticket_id: str,
+    queue: asyncio.Queue[str],
+) -> None:
+    """
+    Orchestrates a full troubleshooting session for one ticket.
+
+    Runs in a loop: each iteration streams one agent turn, submits the ERP
+    activity, then waits for the next technician message. The loop exits on
+    asyncio.CancelledError (stop button) or on an unhandled exception.
     """
     settings = get_settings()
     start_time = datetime.now(timezone.utc)
@@ -38,7 +101,7 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
     async with AsyncSessionLocal() as db:
         chat = await db.get(Chat, chat_id)
         if chat is None:
-            logger.error("start_agent: chat %s not found", chat_id)
+            logger.error("_run_agent_loop: chat %s not found", chat_id)
             return
 
         runner = None
@@ -73,7 +136,7 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
                 ctx.chat_id, ctx.ticket_id, ctx.host, ctx.port, ctx.description,
             )
 
-            prompt = (
+            initial_prompt = (
                 f"Ticket #{ticket.id}: {ticket.title}\n\n"
                 f"Customer: {ticket.customer_name}\n"
                 f"Priority: {ticket.priority}\n\n"
@@ -82,54 +145,92 @@ async def start_agent(chat_id: uuid.UUID, ticket_id: str) -> None:
                 "Follow the workflow: call get_ticket_context first, then run diagnostic "
                 "commands, apply a targeted fix, and validate the result."
             )
-            await save_message(db, chat_id, "user", prompt)
+            await save_message(db, chat_id, "user", initial_prompt)
             await db.commit()
 
-            full_text = ""
-            async with autopilot_agent.run_stream(
-                prompt,
-                deps=ctx,
-                model_settings={"parallel_tool_calls": False},
-            ) as result:
-                async for delta in result.stream_text(delta=True):
-                    full_text += delta
-                    await agent_event_bus.publish(chat_id, {
-                        "event": "text_delta",
-                        "content": delta,
-                    })
+            # ----------------------------------------------------------------
+            # Multi-turn loop
+            # ----------------------------------------------------------------
 
-            await save_message(db, chat_id, "assistant", full_text)
-            await db.commit()
+            message_history: list = []
+            current_input = initial_prompt
+            turn = 0
 
-            end_time = datetime.now(timezone.utc)
+            while True:
+                chat.status = "running"
+                await db.commit()
 
-            activity = await _generate_activity(
-                db=db,
-                chat_id=chat_id,
-                ticket_id=int(ticket_id),
-                narrative=full_text,
-                start_time=start_time,
-                end_time=end_time,
-            )
+                full_text = ""
+                async with autopilot_agent.run_stream(
+                    current_input,
+                    deps=ctx,
+                    message_history=message_history if message_history else None,
+                    model_settings={"parallel_tool_calls": False},
+                ) as result:
+                    async for delta in result.stream_text(delta=True):
+                        full_text += delta
+                        await agent_event_bus.publish(chat_id, {
+                            "event": "text_delta",
+                            "content": delta,
+                        })
 
-            erp = PhoenixClient(settings.phoenix_api_base_url, settings.phoenix_api_token)
+                message_history = list(result.all_messages())
+
+                await save_message(db, chat_id, "assistant", full_text)
+                await db.commit()
+
+                end_time = datetime.now(timezone.utc)
+
+                activity = await _generate_activity(
+                    db=db,
+                    chat_id=chat_id,
+                    ticket_id=int(ticket_id),
+                    narrative=full_text,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+
+                erp = PhoenixClient(settings.phoenix_api_base_url, settings.phoenix_api_token)
+                try:
+                    await erp.create_activity(activity)
+                    await erp.set_ticket_status(int(ticket_id), TicketStatus.DONE)
+                finally:
+                    await erp.close()
+
+                chat.status = "idle"
+                await db.commit()
+
+                await agent_event_bus.publish(chat_id, {
+                    "event": "agent_completed",
+                    "summary": activity.summary or "",
+                })
+                await agent_event_bus.publish(chat_id, {"event": "agent_idle"})
+
+                # Wait for next user message — CancelledError fires here on abort
+                new_message = await queue.get()
+
+                chat.status = "running"
+                await db.commit()
+                await save_message(db, chat_id, "user", new_message)
+                await db.commit()
+
+                current_input = new_message
+                start_time = datetime.now(timezone.utc)
+                turn += 1
+
+        except asyncio.CancelledError:
+            logger.info("Agent cancelled for chat_id=%s", chat_id)
+            chat.status = "stopped"
             try:
-                await erp.create_activity(activity)
-                await erp.set_ticket_status(int(ticket_id), TicketStatus.DONE)
-            finally:
-                await erp.close()
-
-            chat.status = "completed"
-            await db.commit()
-
-            await agent_event_bus.publish(chat_id, {
-                "event": "agent_completed",
-                "summary": activity.summary or "",
-            })
+                await db.commit()
+            except Exception:
+                await db.rollback()
+            await agent_event_bus.publish(chat_id, {"event": "agent_stopped"})
+            raise
 
         except Exception as exc:
             logger.exception(
-                "start_agent failed chat_id=%s ticket_id=%s: %s",
+                "_run_agent_loop failed chat_id=%s ticket_id=%s: %s",
                 chat_id, ticket_id, exc,
             )
             chat.status = "failed"
