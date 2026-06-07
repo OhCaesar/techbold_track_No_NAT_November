@@ -70,6 +70,16 @@ export class TicketService {
     return this.http.patch(`${this.chatsUrl}/${chatId}/tool-calls/${toolCallId}`, { approved });
   }
 
+  /** Cancel a running or idle agent session. */
+  abortChat(chatId: string): Observable<any> {
+    return this.http.post(`${this.chatsUrl}/${chatId}/abort`, {});
+  }
+
+  /** Send a follow-up message to an idle agent. */
+  sendMessage(chatId: string, content: string): Observable<any> {
+    return this.http.post(`${this.chatsUrl}/${chatId}/messages`, { content });
+  }
+
   /** Fetch all persisted messages for a chat (oldest first by sequence). */
   getChatMessages(chatId: string): Observable<any[]> {
     return this.http.get<any[]>(`${this.chatsUrl}/${chatId}/messages`);

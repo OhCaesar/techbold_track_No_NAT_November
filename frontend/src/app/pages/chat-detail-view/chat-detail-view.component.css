@@ -566,6 +566,19 @@
   color: #e0e0e0;
 }
 
+.stop-button:disabled,
+.speak-input input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.user-message {
+  text-align: right;
+  background: #e8f4fd;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
 .scroll-to-latest {
   position: absolute;
   right: 24px;

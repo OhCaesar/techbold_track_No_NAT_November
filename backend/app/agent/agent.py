@@ -285,7 +285,7 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: 
         if auto_approved:
             approved = True
         else:
-            approved = await approval_gate.request_approval(tool_call.id)
+            approved = await approval_gate.request_approval(tool_call.id, deps.chat_id)
 
         if not approved:
             async with AsyncSessionLocal() as db:

@@ -28,11 +28,11 @@ interface OpenChat {
   date?: string;
   active?: boolean;
   content?: string;
-  /** Backend chat status: "running" | "awaiting_approval" | "completed" | "failed". */
-  status?: string;
   eventSource: EventSource | null;
   /** Signal so SSE pushes re-render the chat view automatically (zoneless app). */
   messages: WritableSignal<ChatMessage[]>;
+  /** Reflects the backend chat status; drives enabled/disabled state of controls. */
+  status: WritableSignal<string>;
   /** True while the agent is actively streaming (drives the bottom loading text). */
   loading: WritableSignal<boolean>;
   /** Rotating "working…" text shown at the bottom while streaming. */
@@ -298,9 +298,9 @@ export class TicketDetailviewComponent implements OnInit {
         date: chat.date,
         active: chat.active,
         content: chat.content || '',
-        status: chat.status,
         eventSource: null,
         messages: signal<ChatMessage[]>([]),
+        status: signal<string>(chat.status || 'running'),
         loading: signal(false),
         loadingText: signal(''),
         completed: signal(chat.status === 'completed'),
@@ -335,7 +335,7 @@ export class TicketDetailviewComponent implements OnInit {
    */
   private connectStream(chat: OpenChat): void {
     const chatId = typeof chat.id === 'string' ? chat.id : chat.id.toString();
-    const isLive = chat.status === 'running' || chat.status === 'awaiting_approval';
+    const isLive = chat.status() === 'running' || chat.status() === 'awaiting_approval';
 
     // Load old messages from /api/chats/{chatId}/messages.
     this.ticketService.getChatMessages(chatId).subscribe({
@@ -534,35 +534,54 @@ export class TicketDetailviewComponent implements OnInit {
       currentMessageId = '';
       chat.loading.set(false);
       chat.completed.set(true);
-      chat.status = 'completed';
       chat.messages.update((msgs) => [
         ...msgs,
         {
           id: Math.random().toString(),
-          content: `✅ Agent completed: ${data.summary || 'Task finished'}`,
+          content: `✅ Turn completed: ${data.summary || 'Task finished'}`,
         },
       ]);
-      es.close();
+      chat.status.set('idle');
+      // Stream stays open — agent_idle follows and more turns may come
+    });
+
+    es.addEventListener('agent_idle', () => {
+      currentMessageId = '';
+      chat.status.set('idle');
+    });
+
+    es.addEventListener('agent_stopped', () => {
+      currentMessageId = '';
+      chat.loading.set(false);
+      chat.status.set('stopped');
+      chat.messages.update((msgs) => [
+        ...msgs,
+        { id: Math.random().toString(), content: '🛑 Agent stopped. Type a message to restart.' },
+      ]);
+      // No es.close() — let the server close the stream so EventSource auto-reconnects
+      // for the next agent run.
     });
 
     es.addEventListener('agent_failed', (event: any) => {
       const data = JSON.parse(event.data);
       currentMessageId = '';
       chat.loading.set(false);
-      chat.status = 'failed';
+      chat.status.set('failed');
       chat.messages.update((msgs) => [
         ...msgs,
         {
           id: Math.random().toString(),
-          content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
+          content: `❌ Agent failed: ${data.error || 'Unknown error'}. Type a message to retry.`,
         },
       ]);
-      es.close();
+      // No es.close() — let the server close the stream so EventSource auto-reconnects.
     });
 
     es.addEventListener('error', () => {
-      // EventSource fires 'error' on normal close too; only surface it while connecting/open.
-      if (es.readyState === EventSource.CLOSED) {
+      // CONNECTING (0) = auto-reconnecting after server closed the stream — normal, ignore.
+      // CLOSED (2)     = already explicitly closed — ignore.
+      // OPEN (1)       = error while the stream was live — surface it to the user.
+      if (es.readyState !== EventSource.OPEN) {
         return;
       }
       console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
@@ -655,9 +674,9 @@ export class TicketDetailviewComponent implements OnInit {
           date: new Date(response.created_at).toLocaleDateString('de-AT'),
           active: true,
           content: '',
-          status: response.status || 'running',
           eventSource: null,
           messages: signal<ChatMessage[]>([]),
+          status: signal<string>('running'),
           loading: signal(false),
           loadingText: signal(''),
           completed: signal(false),
@@ -674,6 +693,43 @@ export class TicketDetailviewComponent implements OnInit {
       error: (err) => {
         console.error('Error creating chat:', err);
       },
+    });
+  }
+
+  onStopClicked(): void {
+    const chat = this.activeChat();
+    if (!chat) return;
+    this.ticketService.abortChat(chat.id.toString()).subscribe({
+      error: (err) => console.error('Abort failed:', err),
+    });
+  }
+
+  onMessageSent(content: string): void {
+    const chat = this.activeChat();
+    if (!chat) return;
+
+    // For stopped/failed chats the old EventSource was closed by the server.
+    // Re-open it before calling sendMessage so the SSE subscription exists in
+    // the event bus before the restarted agent task starts publishing.
+    const chatStatus = chat.status();
+    if (chatStatus === 'stopped' || chatStatus === 'failed') {
+      if (chat.eventSource) {
+        chat.eventSource.close();
+      }
+      // Set status to 'running' before opening the stream so the isLive check
+      // inside connectStream doesn't block the SSE connection.
+      // Use openStreamConnection directly to avoid reloading history (which
+      // would wipe the optimistic user message we're about to add).
+      chat.status.set('running');
+      this.openStreamConnection(chat);
+    }
+
+    chat.messages.update((msgs) => [
+      ...msgs,
+      { id: Math.random().toString(), content: `You: ${content}`, isUser: true },
+    ]);
+    this.ticketService.sendMessage(chat.id.toString(), content).subscribe({
+      error: (err) => console.error('Send message failed:', err),
     });
   }
 

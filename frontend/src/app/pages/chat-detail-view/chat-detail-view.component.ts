@@ -52,6 +52,7 @@ export interface ChatMessage {
   shellCommand?: string;
   execution?: Execution;
   toolCall?: ToolCallView;
+  isUser?: boolean;
 }
 
 @Component({
@@ -68,11 +69,26 @@ export class ChatDetailViewComponent {
   @Output() chatClosed = new EventEmitter<number>();
   @Output() newChatAdded = new EventEmitter<void>();
   @Output() toolCallResolved = new EventEmitter<{ toolCallId: string; approved: boolean }>();
+  @Output() stopClicked = new EventEmitter<void>();
+  @Output() messageSent = new EventEmitter<string>();
   @Output() back = new EventEmitter<void>();
 
   @ViewChild('chatContent') private chatContent?: ElementRef<HTMLElement>;
 
   expandedThinking: { [key: string]: boolean } = {};
+
+  get chatStatus(): string {
+    const s = this.activeChat?.status;
+    return typeof s === 'function' ? s() : (s ?? 'running');
+  }
+
+  get canStop(): boolean {
+    return ['running', 'awaiting_approval', 'idle'].includes(this.chatStatus);
+  }
+
+  get canSendMessage(): boolean {
+    return ['idle', 'stopped', 'failed'].includes(this.chatStatus);
+  }
 
   /** Manually scroll the chat to the newest (last) message. */
   scrollToLatest(): void {
@@ -164,5 +180,14 @@ export class ChatDetailViewComponent {
   /** Technician approved/rejected an SSH tool call — bubble it up to the parent. */
   resolveToolCall(toolCallId: string, approved: boolean) {
     this.toolCallResolved.emit({ toolCallId, approved });
+  }
+
+  onStop(): void {
+    this.stopClicked.emit();
+  }
+
+  onSendMessage(content: string): void {
+    if (!content.trim()) return;
+    this.messageSent.emit(content.trim());
   }
 }
