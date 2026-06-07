@@ -396,9 +396,10 @@ export class TicketDetailviewComponent implements OnInit {
       chat.status.set('stopped');
       chat.messages.update((msgs) => [
         ...msgs,
-        { id: Math.random().toString(), content: '🛑 Agent stopped by technician.' },
+        { id: Math.random().toString(), content: '🛑 Agent stopped. Type a message to restart.' },
       ]);
-      es.close();
+      // No es.close() — let the server close the stream so EventSource auto-reconnects
+      // for the next agent run.
     });
 
     es.addEventListener('agent_failed', (event: any) => {
@@ -409,15 +410,17 @@ export class TicketDetailviewComponent implements OnInit {
         ...msgs,
         {
           id: Math.random().toString(),
-          content: `❌ Agent failed: ${data.error || 'Unknown error'}`,
+          content: `❌ Agent failed: ${data.error || 'Unknown error'}. Type a message to retry.`,
         },
       ]);
-      es.close();
+      // No es.close() — let the server close the stream so EventSource auto-reconnects.
     });
 
     es.addEventListener('error', () => {
-      // EventSource fires 'error' on normal close too; only surface it while connecting/open.
-      if (es.readyState === EventSource.CLOSED) {
+      // CONNECTING (0) = auto-reconnecting after server closed the stream — normal, ignore.
+      // CLOSED (2)     = already explicitly closed — ignore.
+      // OPEN (1)       = error while the stream was live — surface it to the user.
+      if (es.readyState !== EventSource.OPEN) {
         return;
       }
       console.error('Stream error for chat', chat.id, 'readyState:', es.readyState);
@@ -525,6 +528,18 @@ export class TicketDetailviewComponent implements OnInit {
   onMessageSent(content: string): void {
     const chat = this.activeChat();
     if (!chat) return;
+
+    // For stopped/failed chats the old EventSource was closed by the server.
+    // Re-open it before calling sendMessage so the SSE subscription exists in
+    // the event bus before the restarted agent task starts publishing.
+    const chatStatus = chat.status();
+    if (chatStatus === 'stopped' || chatStatus === 'failed') {
+      if (chat.eventSource) {
+        chat.eventSource.close();
+      }
+      this.connectStream(chat);
+    }
+
     chat.messages.update((msgs) => [
       ...msgs,
       { id: Math.random().toString(), content: `You: ${content}`, isUser: true },

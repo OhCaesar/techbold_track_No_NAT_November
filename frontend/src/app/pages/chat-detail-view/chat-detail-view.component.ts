@@ -79,7 +79,7 @@ export class ChatDetailViewComponent {
   }
 
   get canSendMessage(): boolean {
-    return this.chatStatus === 'idle';
+    return ['idle', 'stopped', 'failed'].includes(this.chatStatus);
   }
 
   get messages(): ChatMessage[] {
