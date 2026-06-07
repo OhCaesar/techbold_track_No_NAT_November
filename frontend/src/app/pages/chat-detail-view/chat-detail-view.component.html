@@ -12,9 +12,16 @@
   <div class="chat-header">
     <button class="back-to-list-button" (click)="goBack()" title="Back to chat list">←</button>
     <h2 class="chat-name">{{ activeChat?.name }}</h2>
+    @if (completed) {
+      <span class="chat-completed-badge">✓ Completed</span>
+    }
   </div>
 
-  <div class="chat-content" #chatContent (scroll)="onChatScroll()">
+  <button class="scroll-to-latest" (click)="scrollToLatest()" title="Scroll to latest message">
+    ↓
+  </button>
+
+  <div class="chat-content" #chatContent>
     @if (streamStatus) {
       <p class="stream-status">{{ streamStatus }}</p>
     }
@@ -22,9 +29,7 @@
     @for (message of messages; track message.id) {
       <div class="message-group">
         @if (message.content) {
-          <p class="message-text" style="white-space: pre-wrap; word-break: break-word">
-            {{ message.content }}
-          </p>
+          <div class="message-text markdown-body" [innerHTML]="message.content | markdown"></div>
         }
 
         @if (message.toolCall; as tc) {
@@ -51,6 +56,25 @@
                 }
               </span>
             </div>
+
+            @if (tc.reason || tc.thinking) {
+              <div class="tool-thinking">
+                <button
+                  class="tool-thinking-toggle"
+                  (click)="toggleThinking(tc.id)"
+                  [attr.aria-expanded]="isThinkingExpanded(tc.id)"
+                >
+                  <span class="tool-thinking-caret">{{
+                    isThinkingExpanded(tc.id) ? '▾' : '▸'
+                  }}</span>
+                  <span class="tool-thinking-icon">💭</span>
+                  <span class="tool-thinking-label">{{ tc.reason || 'Thought process' }}</span>
+                </button>
+                @if (isThinkingExpanded(tc.id)) {
+                  <div class="tool-thinking-body">{{ tc.thinking || tc.reason }}</div>
+                }
+              </div>
+            }
 
             <pre class="tool-call-command"><code>{{ tc.command }}</code></pre>
 
@@ -146,6 +170,17 @@
             <span class="shell-label">2 SHELL</span>
           </div>
         }
+      </div>
+    }
+
+    @if (loading) {
+      <div class="chat-loading">{{ loadingText }}</div>
+    }
+
+    @if (completed) {
+      <div class="chat-success-banner">
+        <span class="chat-success-icon">✓</span>
+        <span>Chat completed successfully</span>
       </div>
     }
   </div>

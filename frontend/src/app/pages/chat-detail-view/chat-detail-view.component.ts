@@ -1,14 +1,7 @@
-import {
-  Component,
-  Input,
-  Output,
-  EventEmitter,
-  ViewChild,
-  ElementRef,
-  AfterViewChecked,
-} from '@angular/core';
+import { Component, Input, Output, EventEmitter, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExecutionDisplayComponent } from '../../components/execution-display/execution-display.component';
+import { MarkdownPipe } from '../../pipes/markdown.pipe';
 
 export interface ToolClaim {
   name: string;
@@ -25,6 +18,10 @@ export interface ToolCallView {
   status: ToolCallStatus;
   output?: string;
   exitCode?: number;
+  /** Short one-line reason shown as the collapsed thought-process indicator. */
+  reason?: string;
+  /** Full reasoning that preceded the call, shown when the element is expanded. */
+  thinking?: string;
 }
 
 export interface ExecutionStep {
@@ -60,11 +57,11 @@ export interface ChatMessage {
 @Component({
   selector: 'app-chat-detail-view',
   standalone: true,
-  imports: [CommonModule, ExecutionDisplayComponent],
+  imports: [CommonModule, ExecutionDisplayComponent, MarkdownPipe],
   templateUrl: './chat-detail-view.component.html',
   styleUrl: './chat-detail-view.component.css',
 })
-export class ChatDetailViewComponent implements AfterViewChecked {
+export class ChatDetailViewComponent {
   @Input() openChats: any[] = [];
   @Input() activeChat: any = null;
   @Output() chatSelected = new EventEmitter<any>();
@@ -75,50 +72,13 @@ export class ChatDetailViewComponent implements AfterViewChecked {
 
   @ViewChild('chatContent') private chatContent?: ElementRef<HTMLElement>;
 
-  /**
-   * Auto-follow the newest messages. Only the USER scrolling changes this: it
-   * flips false when they scroll up and true again when they return to the
-   * bottom. Our own programmatic snap-to-bottom is ignored (see onChatScroll).
-   */
-  private stickToBottom = true;
-  /** Set while we programmatically scroll, so that scroll event isn't read as user input. */
-  private programmaticScroll = false;
-  /** Remembers which chat we last auto-scrolled, so switching chats jumps to bottom. */
-  private lastChatId: any = null;
-
   expandedThinking: { [key: string]: boolean } = {};
 
-  ngAfterViewChecked(): void {
+  /** Manually scroll the chat to the newest (last) message. */
+  scrollToLatest(): void {
     const el = this.chatContent?.nativeElement;
     if (!el) return;
-
-    // On switching to a different chat, always jump to the latest messages.
-    const currentId = this.activeChat?.id ?? null;
-    if (currentId !== this.lastChatId) {
-      this.lastChatId = currentId;
-      this.stickToBottom = true;
-    }
-
-    const maxScrollTop = el.scrollHeight - el.clientHeight;
-    if (this.stickToBottom && el.scrollTop < maxScrollTop) {
-      this.programmaticScroll = true;
-      el.scrollTop = maxScrollTop;
-    }
-  }
-
-  /**
-   * Only real user scrolls toggle auto-follow. Scroll events fired by our own
-   * snap-to-bottom are swallowed, so we never fight the user's scrolling.
-   */
-  onChatScroll(): void {
-    if (this.programmaticScroll) {
-      this.programmaticScroll = false;
-      return;
-    }
-    const el = this.chatContent?.nativeElement;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    this.stickToBottom = distanceFromBottom < 60;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
 
   get messages(): ChatMessage[] {
@@ -130,6 +90,24 @@ export class ChatDetailViewComponent implements AfterViewChecked {
       return m();
     }
     return m ?? [];
+  }
+
+  /** True while the agent is actively streaming (not waiting for input / not done). */
+  get loading(): boolean {
+    const l = this.activeChat?.loading;
+    return typeof l === 'function' ? l() : !!l;
+  }
+
+  /** Rotating "working…" text shown at the bottom while streaming. */
+  get loadingText(): string {
+    const t = this.activeChat?.loadingText;
+    return typeof t === 'function' ? t() : (t ?? '');
+  }
+
+  /** True once the agent has reported completion. */
+  get completed(): boolean {
+    const c = this.activeChat?.completed;
+    return typeof c === 'function' ? c() : !!c;
   }
 
   /** Connection placeholder shown only before the first event arrives. */
