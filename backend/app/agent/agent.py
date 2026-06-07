@@ -52,6 +52,9 @@ You have one tool:
 IMPORTANT: Call only ONE tool at a time. Wait for the result before calling the next tool. \
 Never issue multiple run_ssh_command calls in the same turn.
 
+For every run_ssh_command call you MUST supply a `reason` argument: one short, precise \
+sentence explaining why you are running that specific command. No preamble, no bloat.
+
 == MANDATORY WORKFLOW ==
 
 Step 1 — Read the acceptance test FIRST (always):
@@ -217,7 +220,7 @@ def build_runner_for_customer(
 
 
 @autopilot_agent.tool
-async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
+async def run_ssh_command(ctx: RunContext[TicketContext], command: str, reason: str) -> str:
     """
     Execute a single shell command on the customer VM over the persistent SSH connection.
 
@@ -232,6 +235,7 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
 
     Args:
         command: Shell command to execute on the remote host. Must be safe and targeted.
+        reason: One short sentence explaining why this specific command is being run.
 
     Returns:
         Command output (stdout/stderr/exit_code) or a rejection/blocked/error message.
@@ -260,7 +264,7 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
     # 2. Persist pending tool call
     async with AsyncSessionLocal() as db:
         tool_call = await save_tool_call(
-            db, deps.chat_id, "run_ssh_command", {"command": command},
+            db, deps.chat_id, "run_ssh_command", {"command": command, "reason": reason},
             pydantic_call_id=ctx.tool_call_id,
         )
         await db.commit()
@@ -271,7 +275,7 @@ async def run_ssh_command(ctx: RunContext[TicketContext], command: str) -> str:
         "event": "tool_call_requested",
         "tool_call_id": str(tool_call.id),
         "tool_name": "run_ssh_command",
-        "args": {"command": command},
+        "args": {"command": command, "reason": reason},
         "auto_approved": auto_approved,
     })
 
